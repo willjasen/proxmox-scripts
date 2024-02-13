@@ -9,7 +9,9 @@
 # Read in the CSV file
 while IFS="," read -r jobID schedule
 do
-  echo "Job ID: $jobID"
-  echo "Schedule: $schedule"
-  echo ""
+  if [ ! -z "$jobID" ]; then
+    echo "Job ID: $jobID";
+    echo "Schedule: $schedule";
+    echo "";
+  fi
 done < <(tail -n +2 replication-job-settings.csv)
