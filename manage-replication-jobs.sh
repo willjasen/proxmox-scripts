@@ -10,8 +10,8 @@
 while IFS="," read -r jobID schedule
 do
   if [ ! -z "$jobID" ]; then
-    echo "Job ID: $jobID";
-    echo "Schedule: $schedule";
+    echo "Updating job ID '$jobID' to schedule of '$schedule'";
+    pvesr update $jobID --schedule "$schedule";
     echo "";
   fi
 done < <(tail -n +2 replication-job-settings.csv)
