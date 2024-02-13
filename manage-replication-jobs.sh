@@ -10,6 +10,6 @@
 while IFS="," read -r jobID schedule
 do
   echo "Job ID: $jobID"
-  echo "SChedule: $schedule"
+  echo "Schedule: $schedule"
   echo ""
 done < <(tail -n +2 replication-job-settings.csv)
