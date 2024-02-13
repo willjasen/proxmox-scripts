@@ -9,7 +9,7 @@
 # Read in the CSV file
 while IFS="," read -r jobID schedule
 do
-  if [ ! -z "$jobID"]; then
+  if [ ! -z "$jobID" ]; then
 
     curJobSchedule=$(pvesr read $jobID | jq -r '.schedule');
     if [[ "$curJobSchedule" != "$schedule" ]]; then
