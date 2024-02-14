@@ -1,7 +1,13 @@
 #!/bin/bash
 
-# Make sure jq is installed
-# apt install jq -y;
+# --- PARAMETERS ---
+# - action can be either 'run' or 'read'
+#   - run will update the jobs and read will save the current job configuration
+
+# Install jq if not detected
+if [ -z $(which jq) ]; then
+  apt install jq -y;
+fi
 
 # Get all job IDs on the current server
 # jobIDs=$(pvesr list | awk '{print $1}' | grep -Eo '[1-9][0-9]{2,8}-[0-9]{1,9}');
