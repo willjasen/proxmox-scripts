@@ -18,26 +18,27 @@ read_jobs () {
   fi
 
   # Create header line in CSV
-  echo "jobID,schedule" | tee -a $SETTINGS_FILE;
+  echo "jobID,schedule,comment" | tee -a $SETTINGS_FILE;
 
   # Save all the current job settings into the settings file
   jobIDs=$(pvesr list | awk '{print $1}' | grep -Eo '[1-9][0-9]{2,8}-[0-9]{1,9}');
   for jobID in $jobIDs; do
     curJobSchedule=$(pvesr read $jobID | jq -r '.schedule');
-    echo "$jobID,$curJobSchedule" | tee -a $SETTINGS_FILE;
+    comment=$(pvesr read $jobID | jq -r '.comment');
+    echo "$jobID,$curJobSchedule,$comment" | tee -a $SETTINGS_FILE;
   done;
 }
 
 update_jobs () {
   # Read in the CSV file
-  while IFS="," read -r jobID schedule
+  while IFS="," read -r jobID schedule comment
   do
     if [ ! -z "$jobID" ]; then
 
       curJobSchedule=$(pvesr read $jobID | jq -r '.schedule');
       if [[ "$curJobSchedule" != "$schedule" ]]; then
         echo "Updating job ID '$jobID' to schedule of '$schedule'";
-        pvesr update $jobID --schedule "$schedule";
+        pvesr update $jobID --schedule "$schedule" --comment "$comment";
       else
         echo "Job ID '$jobID' already has the schedule '$schedule'";
       fi
