@@ -38,7 +38,6 @@ update_jobs () {
       if [[ "$curJobSchedule" != "$schedule" ]]; then
         echo "Updating job ID '$jobID' to schedule of '$schedule'";
         pvesr update $jobID --schedule "$schedule";
-        echo "";
       else
         echo "Job ID '$jobID' already has the schedule '$schedule'";
       fi
