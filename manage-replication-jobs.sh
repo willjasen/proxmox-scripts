@@ -61,4 +61,5 @@ elif [[ "$1" == "update" ]]; then
   update_jobs
 else
   echo "Script parameter was not valid";
+  echo "Parameter must either be 'read' or 'update'";
 fi
