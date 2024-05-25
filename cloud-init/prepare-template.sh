@@ -6,7 +6,7 @@ IPFS_GATEWAY=https://ipfs.io/ipfs;
 IMAGE_IPFS_HASH=QmXoZm3ee4eHvFZ8FPPs8BTyHGC3cLEzXPxuEgUUDNkkgj;
 PUBKEY_IPFS_HASH=QmSkVe4aH9KCoBCXgNKYjpX1Kd9QrT19Q5DohApkqURHmk;
 IMAGE_FILENAME=ubuntu-24.04-minimal-cloudimg-amd64.img;
-DATASTORE=zfs;
+VM_DATASTORE=zfs;
 
 # Varied variables
 random_number=$(( RANDOM % 1000 ));
@@ -33,8 +33,8 @@ fi;
 # fi;
 
 qm create $VM_ID --memory 2048 --net0 virtio,bridge=vmbr0,tag=123 --scsihw virtio-scsi-pci;
-qm set $VM_ID --scsi0 $DATASTORE:0,import-from=$PWD/$IMAGE_FILENAME;
-qm set $VM_ID --ide2 $DATASTORE:cloudinit;
+qm set $VM_ID --scsi0 $VM_DATASTORE:0,import-from=$PWD/$IMAGE_FILENAME;
+qm set $VM_ID --ide2 $VM_DATASTORE:cloudinit;
 qm set $VM_ID --boot order=scsi0;
 qm set $VM_ID --serial0 socket --vga serial0;
 qm set $VM_ID --ipconfig0 ip=dhcp;
