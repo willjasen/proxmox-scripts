@@ -34,7 +34,7 @@ fi;
 
 qm create $VM_ID --memory 2048 --net0 virtio,bridge=vmbr0,tag=123 --scsihw virtio-scsi-pci;
 qm set $VM_ID --scsi0 $DATASTORE:0,import-from=$PWD/$IMAGE_FILENAME;
-qm set $VM_ID --ide2 DATASTORE:cloudinit;
+qm set $VM_ID --ide2 $DATASTORE:cloudinit;
 qm set $VM_ID --boot order=scsi0;
 qm set $VM_ID --serial0 socket --vga serial0;
 qm set $VM_ID --ipconfig0 ip=dhcp;
