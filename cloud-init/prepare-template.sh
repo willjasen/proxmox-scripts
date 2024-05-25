@@ -14,11 +14,11 @@ VM_ID="9$formatted_number";
 
 # Create symbolic link for userconfig.yaml if needed
 if [ ! -L /var/lib/vz/snippets/userconfig.yaml ]; then
-  ln -s $PWD/cloud-init/userconfig.yaml /var/lib/vz/snippets/userconfig.yaml;
+  ln -s $PWD/userconfig.yaml /var/lib/vz/snippets/userconfig.yaml;
 fi;
 
 # Download the image if needed
-if [ ! -f $PWD/cloud-init/$IMAGE_FILENAME ]; then
+if [ ! -f $PWD/$IMAGE_FILENAME ]; then
   wget -O $IMAGE_FILENAME $IPFS_GATEWAY/$IMAGE_IPFS_HASH;
 fi;
 
@@ -32,7 +32,7 @@ fi;
 # fi;
 
 qm create $VM_ID --memory 2048 --net0 virtio,bridge=vmbr0,tag=123 --scsihw virtio-scsi-pci;
-qm set $VM_ID --scsi0 zfs:0,import-from=$PWD/cloud-init/$IMAGE_FILENAME;
+qm set $VM_ID --scsi0 zfs:0,import-from=$PWD/$IMAGE_FILENAME;
 qm set $VM_ID --ide2 zfs:cloudinit;
 qm set $VM_ID --boot order=scsi0;
 qm set $VM_ID --serial0 socket --vga serial0;
