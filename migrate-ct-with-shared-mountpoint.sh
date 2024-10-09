@@ -14,7 +14,7 @@ HOST_TO_MIGRATE_FROM=$(hostname)
 HOST_TO_MIGRATE_TO=$1
 
 # Define the LXC IDs manually
-LXC_IDS=("515" "517" "533")  # Add more LXC IDs as needed
+LXC_IDS=("515" "517" "533")
 
 # Loop through each LXC ID
 for LXC_ID in "${LXC_IDS[@]}"
