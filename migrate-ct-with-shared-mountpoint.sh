@@ -22,7 +22,7 @@ LXC_IDS=("515" "517" "533")
 # Loop through each LXC ID
 for LXC_ID in "${LXC_IDS[@]}"
 do
-    echo "${YELLOW}Starting custom migration of container $LXC_ID..."
+    echo -e "${YELLOW}Starting custom migration of container $LXC_ID..."
 
     # Comment out the bind mount in the LXC config
     echo "Editing config file for container $LXC_ID..."
