@@ -4,8 +4,14 @@
 ### This script will migrate an LXC container that has a shared mount point from one host to another
 ###
 
+# Check if $1 is supplied
+if [ -z "$1" ]; then
+    echo "Error: No argument supplied. Please provide a hostname."
+    exit 1
+fi
+
 HOST_TO_MIGRATE_FROM=$(hostname);
-HOST_TO_MIGRATE_TO=pve1;
+HOST_TO_MIGRATE_TO=$1;
 LXC_ID=517;
 
 # Comment out the bind mount in the LXC config
