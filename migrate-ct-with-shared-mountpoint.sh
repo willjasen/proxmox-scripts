@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 ###
 ### This script will migrate LXC containers that have shared mount points from one host to another
