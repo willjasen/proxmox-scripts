@@ -12,7 +12,7 @@ LXC_ID=517;
 sed -i 's|^mp8|# &|' /etc/pve/nodes/$HOST_TO_MIGRATE_FROM/lxc/$LXC_ID.conf
 
 # Start the migration process
-pct migrate $LXC_ID $HOST_TO_MIGRATE_TO &
+pct migrate $LXC_ID $HOST_TO_MIGRATE_TO
 
 # Wait for the migration to complete
 while pct status $LXC_ID | grep -q 'status:'; do
@@ -20,8 +20,8 @@ while pct status $LXC_ID | grep -q 'status:'; do
 done
 echo "LXC container $LXC_ID has been successfully migrated to $HOST_TO_MIGRATE_TO"
 
-# (Optional) Re-enable the bind mount on the target host after migration
-# Uncomment this if you want to automate the re-enabling of the bind mount on the destination host
-# ssh root@$HOST_TO_MIGRATE_TO "sed -i 's|# mp8: /mnt/pve/cephfs--hdd--lowT/data/syncthing/Media,mp=/mnt/host/Media|mp8: /mnt/pve/cephfs--hdd--lowT/data/syncthing/Media,mp=/mnt/host/Media|' /etc/pve/lxc/$LXC_ID.conf"
+# On the target host, reactivate the shared mount point
+ssh root@$HOST_TO_MIGRATE_TO "sed -i 's/# mp8%3A/mp8:/g' /etc/pve/lxc/$LXC_ID.conf"
 
+# The script is finished
 echo "Migration script completed."
