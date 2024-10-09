@@ -11,6 +11,8 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+YELLOW="\e[33m";
+
 HOST_TO_MIGRATE_FROM=$(hostname)
 HOST_TO_MIGRATE_TO=$1
 
@@ -20,7 +22,7 @@ LXC_IDS=("515" "517" "533")
 # Loop through each LXC ID
 for LXC_ID in "${LXC_IDS[@]}"
 do
-    echo "Starting custom migration of container $LXC_ID..."
+    echo "${YELLOW}Starting custom migration of container $LXC_ID..."
 
     # Comment out the bind mount in the LXC config
     echo "Editing config file for container $LXC_ID..."
