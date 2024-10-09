@@ -2,6 +2,7 @@
 
 ###
 ### This script will migrate LXC containers that have shared mount points from one host to another
+### This script assumes that the shared mount points of all containers are at "mp8"
 ###
 
 # Check if $1 (hostname) is supplied
@@ -31,9 +32,6 @@ do
     while pct status $LXC_ID | grep -q 'status:'; do
         sleep 5
     done
-
-    # Go to sleep because
-    sleep 3;
 
     # On the target host, reactivate the shared mount point
     ssh root@$HOST_TO_MIGRATE_TO "sed -i 's/# mp8%3A/mp8:/g' /etc/pve/lxc/$LXC_ID.conf"
