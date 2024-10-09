@@ -4,7 +4,7 @@
 ### This script will migrate an LXC container that has a shared mount point from one host to another
 ###
 
-HOST_TO_MIGRATE_FROM=pve2;
+HOST_TO_MIGRATE_FROM=$(hostname);
 HOST_TO_MIGRATE_TO=pve1;
 LXC_ID=517;
 
