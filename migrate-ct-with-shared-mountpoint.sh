@@ -7,7 +7,7 @@
 
 # Check if $1 (hostname) is supplied
 if [ -z "$1" ]; then
-    echo "Error: No hostname supplied. Please provide a target hostname."
+    echo "Error: No target hostname was supplied. Please provide a target hostname."
     exit 1
 fi
 
