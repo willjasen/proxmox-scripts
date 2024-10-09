@@ -31,7 +31,7 @@ do
 
     # Wait for the migration to complete
     while pct status $LXC_ID | grep -q 'status:'; do
-        sleep 5
+        sleep 1
     done
 
     # On the target host, reactivate the shared mount point
