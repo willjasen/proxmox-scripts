@@ -1,33 +1,41 @@
 #!/bin/sh
 
 ###
-### This script will migrate an LXC container that has a shared mount point from one host to another
+### This script will migrate LXC containers that have shared mount points from one host to another
 ###
 
-# Check if $1 is supplied
+# Check if $1 (hostname) is supplied
 if [ -z "$1" ]; then
-    echo "Error: No argument supplied. Please provide a hostname."
+    echo "Error: No hostname supplied. Please provide a target hostname."
     exit 1
 fi
 
-HOST_TO_MIGRATE_FROM=$(hostname);
-HOST_TO_MIGRATE_TO=$1;
-LXC_ID=517;
+HOST_TO_MIGRATE_FROM=$(hostname)
+HOST_TO_MIGRATE_TO=$1
 
-# Comment out the bind mount in the LXC config
-sed -i 's|^mp8|# &|' /etc/pve/nodes/$HOST_TO_MIGRATE_FROM/lxc/$LXC_ID.conf
+# Define the LXC IDs manually
+LXC_IDS=("515" "517")  # Add more LXC IDs as needed
 
-# Start the migration process
-pct migrate $LXC_ID $HOST_TO_MIGRATE_TO
+# Loop through each LXC ID
+for LXC_ID in "${LXC_IDS[@]}"
+do
+    echo "Starting migration of LXC container $LXC_ID..."
 
-# Wait for the migration to complete
-while pct status $LXC_ID | grep -q 'status:'; do
-    sleep 5
+    # Comment out the bind mount in the LXC config
+    sed -i 's|^mp8|# &|' /etc/pve/nodes/$HOST_TO_MIGRATE_FROM/lxc/$LXC_ID.conf
+
+    # Start the migration process
+    pct migrate $LXC_ID $HOST_TO_MIGRATE_TO
+
+    # Wait for the migration to complete
+    while pct status $LXC_ID | grep -q 'status:'; do
+        sleep 5
+    done
+
+    # On the target host, reactivate the shared mount point
+    ssh root@$HOST_TO_MIGRATE_TO "sed -i 's/# mp8%3A/mp8:/g' /etc/pve/lxc/$LXC_ID.conf"
+    echo "LXC container $LXC_ID has been successfully migrated to $HOST_TO_MIGRATE_TO"
 done
 
-# On the target host, reactivate the shared mount point
-ssh root@$HOST_TO_MIGRATE_TO "sed -i 's/# mp8%3A/mp8:/g' /etc/pve/lxc/$LXC_ID.conf"
-echo "LXC container $LXC_ID has been successfully migrated to $HOST_TO_MIGRATE_TO"
-
 # The script is finished
-echo "Migration script completed."
+echo "All migrations completed."
