@@ -18,10 +18,10 @@ pct migrate $LXC_ID $HOST_TO_MIGRATE_TO
 while pct status $LXC_ID | grep -q 'status:'; do
     sleep 5
 done
-echo "LXC container $LXC_ID has been successfully migrated to $HOST_TO_MIGRATE_TO"
 
 # On the target host, reactivate the shared mount point
 ssh root@$HOST_TO_MIGRATE_TO "sed -i 's/# mp8%3A/mp8:/g' /etc/pve/lxc/$LXC_ID.conf"
+echo "LXC container $LXC_ID has been successfully migrated to $HOST_TO_MIGRATE_TO"
 
 # The script is finished
 echo "Migration script completed."
