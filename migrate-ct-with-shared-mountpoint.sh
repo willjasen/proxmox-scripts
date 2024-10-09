@@ -11,7 +11,10 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+RED="\e[31m";
+GREEN="\e[32m";
 YELLOW="\e[33m";
+BLUE="\e[34m";
 
 HOST_TO_MIGRATE_FROM=$(hostname)
 HOST_TO_MIGRATE_TO=$1
@@ -25,25 +28,25 @@ do
     echo -e "${YELLOW}Starting custom migration of container $LXC_ID..."
 
     # Comment out the bind mount in the LXC config
-    echo "Editing config file for container $LXC_ID..."
+    echo -e "${GREEN}Editing config file for container $LXC_ID..."
     sed -i 's|^mp8|# &|' /etc/pve/nodes/$HOST_TO_MIGRATE_FROM/lxc/$LXC_ID.conf
 
     # Start the migration process
-    echo "Staring migration of container $LXC_ID..."
+    echo -e "${GREEN}Staring migration of container $LXC_ID..."
     pct migrate $LXC_ID $HOST_TO_MIGRATE_TO
 
     # Wait for the migration to complete
     while pct status $LXC_ID | grep -q 'status:'; do
         sleep 1
     done
-    echo "Migration complete for container $LXC_ID"
+    echo -e "${GREEN}Migration complete for container $LXC_ID"
 
     # On the target host, reactivate the shared mount point
-    echo "Fixing mount point in config file for container $LXC_ID"
+    echo -e "${GREEN}Fixing mount point in config file for container $LXC_ID"
     ssh root@$HOST_TO_MIGRATE_TO "sed -i 's/# mp8%3A/mp8:/g' /etc/pve/lxc/$LXC_ID.conf"
 
-    echo "LXC container $LXC_ID has been successfully migrated to $HOST_TO_MIGRATE_TO"
+    echo -e "${YELLOW}LXC container $LXC_ID has been successfully migrated to $HOST_TO_MIGRATE_TO"
 done
 
 # The script is finished
-echo "All migrations completed."
+echo -e "${GREEN}All migrations completed."
