@@ -4,8 +4,8 @@
 ### This script will migrate an LXC container that has a shared mount point from one host to another
 ###
 
-HOST_TO_MIGRATE_FROM=pve1;
-HOST_TO_MIGRATE_TO=pve2;
+HOST_TO_MIGRATE_FROM=pve2;
+HOST_TO_MIGRATE_TO=pve1;
 LXC_ID=517;
 
 # Comment out the bind mount in the LXC config
