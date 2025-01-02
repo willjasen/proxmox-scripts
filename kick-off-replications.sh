@@ -1,33 +1,22 @@
 #!/bin/bash
 
-# Exit immediately if a command exits with a non-zero status.
 set -e
 
-# -------------------------------
-# Configuration Variables
-# -------------------------------
+# Configuration
+LOG_FILE="/var/log/proxmox_replication.log"
 
-# Log File
-LOG_FILE="/var/log/proxmox_replication.log"   # Ensure this file is writable
-
-# -------------------------------
-# Logging Function
-# -------------------------------
+# Logging function
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
 }
 
-# -------------------------------
-# Script Execution Starts Here
-# -------------------------------
-
 log "Starting replication trigger script on the current node."
 
-# Determine the current node's name using hostname
+# Get current node name
 current_node=$(hostname)
 log "Current node identified as: $current_node"
 
-# Fetch all replication tasks for the current node in JSON format
+# Fetch replication tasks
 replications=$(pvesh get /nodes/$current_node/replication --output-format json 2>/dev/null) || {
     log "Failed to retrieve replication tasks. Please verify the API endpoint and node name."
     exit 1
@@ -35,13 +24,13 @@ replications=$(pvesh get /nodes/$current_node/replication --output-format json 2
 
 log "Replication tasks retrieved: $replications"
 
-# Check if there are any replication tasks
+# Check if replication tasks exist
 if [ -z "$replications" ] || [ "$replications" == "[]" ]; then
     log "No replication tasks found on node $current_node."
     exit 0
 fi
 
-# Extract replication IDs using jq
+# Extract replication IDs
 replication_ids=$(echo "$replications" | jq -r '.[].id')
 
 if [ -z "$replication_ids" ]; then
@@ -51,20 +40,23 @@ fi
 
 log "Found replication task IDs: $replication_ids"
 
-# Iterate over each replication task and trigger it
+# Trigger each replication in the background
 for repl_id in $replication_ids; do
     log "Starting replication task ID: $repl_id on node: $current_node"
 
-    # Construct the API endpoint for schedule_now
     api_endpoint="/nodes/$current_node/replication/$repl_id/schedule_now"
 
-    # Trigger the replication task using 'create' with the 'schedule_now' endpoint
-    response=$(pvesh create "$api_endpoint" 2>&1) || {
-        log "Failed to start replication task ID: $repl_id on node: $current_node. Error: $response"
-        continue
-    }
+    # Run pvesh create in the background
+    pvesh create "$api_endpoint" >> "$LOG_FILE" 2>&1 &
 
-    log "Successfully started replication task ID: $repl_id on node: $current_node."
+    # Optionally, limit the number of concurrent jobs
+    # Uncomment the following lines to limit to 5 concurrent jobs
+    # while (( $(jobs -r | wc -l) >= 5 )); do
+    #     wait -n
+    # done
 done
+
+# Wait for all background jobs to finish
+wait
 
 log "Replication trigger script completed on node $current_node."
