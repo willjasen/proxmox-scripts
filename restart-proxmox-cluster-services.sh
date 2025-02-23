@@ -1,13 +1,14 @@
 GREEN="\e[32m"
 RESET="\e[0m"
 
-echo -e "${GREEN}Restarting corosync.service...${RESET}"
-systemctl restart corosync.service;
-echo -e "${GREEN}Restarting pve-cluster...${RESET}"
-systemctl restart pve-cluster
-echo -e "${GREEN}Restarting pvedaemon...${RESET}"
-systemctl restart pvedaemon
-echo -e "${GREEN}Restarting pvestatd...${RESET}"
-systemctl restart pvestatd
-echo -e "${GREEN}Restarting pveproxy...${RESET}"
-systemctl restart pveproxy
+restart_service() {
+    local service=$1
+    echo -e "${GREEN}Restarting ${service}...${RESET}"
+    systemctl restart ${service}
+}
+
+restart_service corosync
+restart_service pve-cluster
+restart_service pvedaemon
+restart_service pvestatd
+restart_service pveproxy
