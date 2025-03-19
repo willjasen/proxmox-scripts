@@ -31,6 +31,7 @@ fi
 
 for VM_ID in "${VM_IDS[@]}"
 do
+    (
     echo -e "${YELLOW}Starting migration for VM $VM_ID to ${TARGET_HOST}..."
 
     # Shut down the VM
@@ -55,6 +56,8 @@ do
     ssh root@$TARGET_HOST "qm start $VM_ID"
 
     echo -e "${YELLOW}VM $VM_ID has been successfully migrated to ${TARGET_HOST}."
+    ) &
 done
+wait
 
 echo -e "${GREEN}All VM migrations completed."
