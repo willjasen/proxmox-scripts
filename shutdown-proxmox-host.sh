@@ -28,6 +28,16 @@ done
 # Wait until all are stopped
 while [ "$(qm list | grep -c running)" -gt 0 -o "$(pct list | grep -c running)" -gt 0 ]; do
     echo -e "${YELLOW}Waiting for VMs and CTs to shut down...${RESET}"
+    running_vms=$(qm list | grep running)
+    running_cts=$(pct list | grep running)
+    if [ -n "$running_vms" ]; then
+        echo -e "${YELLOW}Still running VMs:${RESET}"
+        echo "$running_vms"
+    fi
+    if [ -n "$running_cts" ]; then
+        echo -e "${YELLOW}Still running CTs:${RESET}"
+        echo "$running_cts"
+    fi
     sleep 3
 done
 
