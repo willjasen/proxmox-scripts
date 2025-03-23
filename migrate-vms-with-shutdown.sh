@@ -19,15 +19,16 @@ BLUE="\e[34m"
 
 SOURCE_HOST=$(hostname)
 TARGET_HOST=$1
+MIGRATE_TAG="migrate-around"
 
 start_time=$(date +%s)
 
 # Get VM IDs from config files that include the tag "migrate-around"
-echo -e "${GREEN}Finding VM IDs with the tag 'migrate-around'..."
-VM_IDS=($(grep -l "tags:.*migrate-around" /etc/pve/qemu-server/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
+echo -e "${GREEN}Finding VM IDs with the tag '${MIGRATE_TAG}'..."
+VM_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/qemu-server/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
 
 if [ ${#VM_IDS[@]} -eq 0 ]; then
-    echo -e "${RED}No VMs with the tag 'migrate-around' were found."
+    echo -e "${RED}No VMs with the tag '${MIGRATE_TAG}' were found."
     exit 1
 fi
 
