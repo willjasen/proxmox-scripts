@@ -20,6 +20,8 @@ BLUE="\e[34m"
 SOURCE_HOST=$(hostname)
 TARGET_HOST=$1
 
+start_time=$(date +%s)
+
 # Get VM IDs from config files that include the tag "migrate-around"
 echo -e "${GREEN}Finding VM IDs with the tag 'migrate-around'..."
 VM_IDS=($(grep -l "tags:.*migrate-around" /etc/pve/qemu-server/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
@@ -31,6 +33,7 @@ fi
 
 for VM_ID in "${VM_IDS[@]}"
 do
+    (
     echo -e "${YELLOW}Starting migration for VM $VM_ID to ${TARGET_HOST}..."
 
     # Shut down the VM
@@ -55,6 +58,11 @@ do
     ssh root@$TARGET_HOST "qm start $VM_ID"
 
     echo -e "${YELLOW}VM $VM_ID has been successfully migrated to ${TARGET_HOST}."
+    ) &
 done
+wait
 
 echo -e "${GREEN}All VM migrations completed."
+end_time=$(date +%s)
+elapsed=$(( end_time - start_time ))
+echo "Script runtime: ${elapsed} seconds."
