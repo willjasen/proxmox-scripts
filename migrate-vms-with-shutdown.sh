@@ -38,7 +38,7 @@ for VM_ID in "${VM_IDS[@]}"; do
     replication_jobs=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg vmid "$VM_ID" 'map(select((.guest|tostring)==$vmid)) | .[]')
     echo -e "${BLUE}VM $VM_ID replication jobs: ${replication_jobs}"
 done
-pause
+sleep 60
 
 # Replicate all replication jobs to target host before the main loop
 # echo -e "${YELLOW}Scheduling replication jobs for all VMs going to ${TARGET_HOST}..."
