@@ -47,7 +47,7 @@ do
         echo -e "${RED}No replication info found for target $TARGET_HOST for VM $VM_ID."
     fi
 
-    api_endpoint="/nodes/$(hostname)/replication/$repl_id/schedule_now"
+    api_endpoint="/nodes/$(hostname)/replication/$replication_info/schedule_now"
      # Run pvesh create in the background
     pvesh create "$api_endpoint"
 
