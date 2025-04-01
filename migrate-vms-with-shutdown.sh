@@ -37,6 +37,20 @@ do
     (
     echo -e "${YELLOW}Starting migration for VM $VM_ID to ${TARGET_HOST}..."
 
+    # Retrieve replication information using 'pvesh get' filtered by target host and VM ID
+    echo -e "${YELLOW}Retrieving replication info for VM $VM_ID..."
+    replication_info=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg target "$TARGET_HOST" --arg vmid "$VM_ID" 'map(select(.target == $target and (.guest|tostring) == $vmid)) | .[0].id')
+    
+    if [ -n "$replication_info" ] && [ "$replication_info" != "null" ]; then
+        echo -e "${GREEN}Replication info: $replication_info"
+    else
+        echo -e "${RED}No replication info found for target $TARGET_HOST for VM $VM_ID."
+    fi
+
+    api_endpoint="/nodes/$(hostname)/replication/$repl_id/schedule_now"
+     # Run pvesh create in the background
+    pvesh create "$api_endpoint"
+
     # Shut down the VM
     echo -e "${GREEN}Shutting down VM $VM_ID..."
     qm shutdown $VM_ID
