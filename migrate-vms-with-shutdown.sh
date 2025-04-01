@@ -37,6 +37,15 @@ echo -e "${BLUE}Retrieving replication jobs for VMs tagged '${MIGRATE_TAG}'..."
 for VM_ID in "${VM_IDS[@]}"; do
     replication_jobs=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg vmid "$VM_ID" --arg target "$TARGET_HOST" 'map(select((.guest|tostring)==$vmid and .target==$target)) | .[]')
     echo -e "${BLUE}VM $VM_ID replication jobs: ${replication_jobs}"
+    # Kick off replication
+    replication_info=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg target "$TARGET_HOST" --arg vmid "$VM_ID" 'map(select(.target == $target and (.guest|tostring) == $vmid)) | .[0].id')
+    if [ -n "$replication_info" ] && [ "$replication_info" != "null" ]; then
+        echo -e "${GREEN}Kicking off replication for VM $VM_ID..."
+        api_endpoint="/nodes/$(hostname)/replication/$replication_info/schedule_now"
+        pvesh create "$api_endpoint"
+    else
+        echo -e "${RED}No replication info found for VM $VM_ID to kick off replication."
+    fi
 done
 sleep 60
 
