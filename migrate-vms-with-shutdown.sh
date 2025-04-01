@@ -50,6 +50,14 @@ do
     api_endpoint="/nodes/$(hostname)/replication/$replication_info/schedule_now"
      # Run pvesh create in the background
     pvesh create "$api_endpoint"
+    # Wait for replication job to complete
+    while true; do
+        job_status=$(pvesh get /nodes/$(hostname)/replication/$replication_info --output-format json | jq -r '.running')
+        if [ "$job_status" != "1" ]; then
+            break
+        fi
+        sleep 1
+    done
 
     # Shut down the VM
     echo -e "${GREEN}Shutting down VM $VM_ID..."
