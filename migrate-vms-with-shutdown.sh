@@ -33,19 +33,19 @@ if [ ${#VM_IDS[@]} -eq 0 ]; then
 fi
 
 # Replicate all replication jobs to target host before the main loop
-echo -e "${YELLOW}Scheduling replication jobs for all VMs going to ${TARGET_HOST}..."
-for VM_ID in "${VM_IDS[@]}"; do
-    echo -e "${YELLOW}Retrieving replication info for VM $VM_ID..."
-    replication_info=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg target "$TARGET_HOST" --arg vmid "$VM_ID" 'map(select(.target == $target and (.guest|tostring) == $vmid)) | .[0].id')
+# echo -e "${YELLOW}Scheduling replication jobs for all VMs going to ${TARGET_HOST}..."
+# for VM_ID in "${VM_IDS[@]}"; do
+#     echo -e "${YELLOW}Retrieving replication info for VM $VM_ID..."
+#     replication_info=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg target "$TARGET_HOST" --arg vmid "$VM_ID" 'map(select(.target == $target and (.guest|tostring) == $vmid)) | .[0].id')
     
-    if [ -n "$replication_info" ] && [ "$replication_info" != "null" ]; then
-        echo -e "${GREEN}Scheduling replication for VM $VM_ID..."
-        api_endpoint="/nodes/$(hostname)/replication/$replication_info/schedule_now"
-        pvesh create "$api_endpoint"
-    else
-        echo -e "${RED}No replication info found for target $TARGET_HOST for VM $VM_ID."
-    fi
-done
+#     if [ -n "$replication_info" ] && [ "$replication_info" != "null" ]; then
+#         echo -e "${GREEN}Scheduling replication for VM $VM_ID..."
+#         api_endpoint="/nodes/$(hostname)/replication/$replication_info/schedule_now"
+#         pvesh create "$api_endpoint"
+#     else
+#         echo -e "${RED}No replication info found for target $TARGET_HOST for VM $VM_ID."
+#     fi
+# done
 # Optionally wait for all replication jobs to complete ...
 
 for VM_ID in "${VM_IDS[@]}"
