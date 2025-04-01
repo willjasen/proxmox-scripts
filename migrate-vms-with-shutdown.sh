@@ -35,7 +35,7 @@ fi
 # Retrieve replication jobs for each VM tagged with '${MIGRATE_TAG}'
 echo -e "${BLUE}Retrieving replication jobs for VMs tagged '${MIGRATE_TAG}'..."
 for VM_ID in "${VM_IDS[@]}"; do
-    replication_jobs=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg vmid "$VM_ID" 'map(select((.guest|tostring)==$vmid)) | .[]')
+    replication_jobs=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg vmid "$VM_ID" --arg target "$TARGET_HOST" 'map(select((.guest|tostring)==$vmid and .target==$target)) | .[]')
     echo -e "${BLUE}VM $VM_ID replication jobs: ${replication_jobs}"
 done
 sleep 60
