@@ -33,42 +33,26 @@ if [ ${#VM_IDS[@]} -eq 0 ]; then
 fi
 
 # Retrieve replication jobs for each VM tagged with '${MIGRATE_TAG}'
-echo -e "${BLUE}Retrieving replication jobs for VMs tagged '${MIGRATE_TAG}'..."
-for VM_ID in "${VM_IDS[@]}";
-do
-    (
-    replication_jobs=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg vmid "$VM_ID" --arg target "$TARGET_HOST" 'map(select((.guest|tostring)==$vmid and .target==$target)) | .[]')
-    echo -e "${BLUE}VM $VM_ID replication jobs: ${replication_jobs}"
-    # Kick off replication
-    replication_info=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg target "$TARGET_HOST" --arg vmid "$VM_ID" 'map(select(.target == $target and (.guest|tostring) == $vmid)) | .[0].id')
-    if [ -n "$replication_info" ] && [ "$replication_info" != "null" ]; then
-        echo -e "${GREEN}Kicking off replication for VM $VM_ID..."
-        api_endpoint="/nodes/$(hostname)/replication/$replication_info/schedule_now"
-        pvesh create "$api_endpoint"
-    else
-        echo -e "${RED}No replication info found for VM $VM_ID to kick off replication."
-    fi
-    ) &
-done
-wait
-echo -e "${YELLOW}Sleeping..."
-sleep 60
-
-# Replicate all replication jobs to target host before the main loop
-# echo -e "${YELLOW}Scheduling replication jobs for all VMs going to ${TARGET_HOST}..."
-# for VM_ID in "${VM_IDS[@]}"; do
-#     echo -e "${YELLOW}Retrieving replication info for VM $VM_ID..."
+# echo -e "${BLUE}Retrieving replication jobs for VMs tagged '${MIGRATE_TAG}'..."
+# for VM_ID in "${VM_IDS[@]}";
+# do
+#     (
+#     replication_jobs=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg vmid "$VM_ID" --arg target "$TARGET_HOST" 'map(select((.guest|tostring)==$vmid and .target==$target)) | .[]')
+#     echo -e "${BLUE}VM $VM_ID replication jobs: ${replication_jobs}"
+#     # Kick off replication
 #     replication_info=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg target "$TARGET_HOST" --arg vmid "$VM_ID" 'map(select(.target == $target and (.guest|tostring) == $vmid)) | .[0].id')
-    
 #     if [ -n "$replication_info" ] && [ "$replication_info" != "null" ]; then
-#         echo -e "${GREEN}Scheduling replication for VM $VM_ID..."
+#         echo -e "${GREEN}Kicking off replication for VM $VM_ID..."
 #         api_endpoint="/nodes/$(hostname)/replication/$replication_info/schedule_now"
 #         pvesh create "$api_endpoint"
 #     else
-#         echo -e "${RED}No replication info found for target $TARGET_HOST for VM $VM_ID."
+#         echo -e "${RED}No replication info found for VM $VM_ID to kick off replication."
 #     fi
+#     ) &
 # done
-# Optionally wait for all replication jobs to complete ...
+# wait
+# echo -e "${YELLOW}Sleeping..."
+# sleep 60
 
 for VM_ID in "${VM_IDS[@]}"
 do
