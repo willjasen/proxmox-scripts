@@ -1,5 +1,5 @@
 #!/bin/bash
-# filepath: /Users/willjasen/Application Data/GitHub/proxmox-scripts/migrate-vms-with-shutdown.sh
+# filepath: proxmox-scripts/migrate-vms-with-shutdown.sh
 
 ###
 ### This script will migrate VMs by shutting them down completely before migration,
@@ -19,17 +19,40 @@ BLUE="\e[34m"
 
 SOURCE_HOST=$(hostname)
 TARGET_HOST=$1
+MIGRATE_TAG="migrate-around"
 
 start_time=$(date +%s)
 
 # Get VM IDs from config files that include the tag "migrate-around"
-echo -e "${GREEN}Finding VM IDs with the tag 'migrate-around'..."
-VM_IDS=($(grep -l "tags:.*migrate-around" /etc/pve/qemu-server/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
+echo -e "${GREEN}Finding VM IDs with the tag '${MIGRATE_TAG}'..."
+VM_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/qemu-server/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
 
 if [ ${#VM_IDS[@]} -eq 0 ]; then
-    echo -e "${RED}No VMs with the tag 'migrate-around' were found."
+    echo -e "${RED}No VMs with the tag '${MIGRATE_TAG}' were found."
     exit 1
 fi
+
+# Retrieve replication jobs for each VM tagged with '${MIGRATE_TAG}'
+# echo -e "${BLUE}Retrieving replication jobs for VMs tagged '${MIGRATE_TAG}'..."
+# for VM_ID in "${VM_IDS[@]}";
+# do
+#     (
+#     replication_jobs=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg vmid "$VM_ID" --arg target "$TARGET_HOST" 'map(select((.guest|tostring)==$vmid and .target==$target)) | .[]')
+#     echo -e "${BLUE}VM $VM_ID replication jobs: ${replication_jobs}"
+#     # Kick off replication
+#     replication_info=$(pvesh get /nodes/$(hostname)/replication --output-format json | jq -r --arg target "$TARGET_HOST" --arg vmid "$VM_ID" 'map(select(.target == $target and (.guest|tostring) == $vmid)) | .[0].id')
+#     if [ -n "$replication_info" ] && [ "$replication_info" != "null" ]; then
+#         echo -e "${GREEN}Kicking off replication for VM $VM_ID..."
+#         api_endpoint="/nodes/$(hostname)/replication/$replication_info/schedule_now"
+#         pvesh create "$api_endpoint"
+#     else
+#         echo -e "${RED}No replication info found for VM $VM_ID to kick off replication."
+#     fi
+#     ) &
+# done
+# wait
+# echo -e "${YELLOW}Sleeping..."
+# sleep 60
 
 for VM_ID in "${VM_IDS[@]}"
 do
