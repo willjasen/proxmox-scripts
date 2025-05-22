@@ -11,6 +11,6 @@ while true; do
         exit 0
     else
         echo "Active replications detected. Checking again in 18 minutes..."
-        sleep 1080
+        sleep 720
     fi
 done
