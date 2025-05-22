@@ -10,7 +10,7 @@ while true; do
         shutdown -h now
         exit 0
     else
-        echo "Active replications detected. Checking again in 8 minutes..."
-        sleep 480
+        echo "Active replications detected. Checking again in 18 minutes..."
+        sleep 1080
     fi
 done
