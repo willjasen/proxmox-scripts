@@ -11,8 +11,54 @@ restart_service() {
     echo -e "${GREEN} done in ${duration} seconds.${RESET}"
 }
 
-restart_service corosync
-restart_service pve-cluster
-restart_service pvedaemon
-restart_service pvestatd
-restart_service pveproxy
+stop_service() {
+    local service=$1
+    echo -ne "${GREEN}Stopping ${service}...${RESET}"
+    local start_time=$(date +%s)
+    systemctl stop ${service}
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    echo -e "${GREEN} done in ${duration} seconds.${RESET}"
+}
+
+start_service() {
+    local service=$1
+    echo -ne "${GREEN}Starting ${service}...${RESET}"
+    local start_time=$(date +%s)
+    systemctl start ${service}
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    echo -e "${GREEN} done in ${duration} seconds.${RESET}"
+}
+
+# stop_service corosync
+# stop_service pve-cluster
+# stop_service pvedaemon
+# stop_service pvestatd
+# stop_service pveproxy
+
+# start_service corosync
+# start_service pve-cluster
+# start_service pvedaemon
+# start_service pvestatd
+# start_service pveproxy
+
+
+
+
+# Stop services in order
+stop_service stop pvescheduler;
+stop_service stop pve-ha-lrm;
+stop_service stop pveproxy;
+stop_service stop pvedaemon;
+stop_service stop corosync;
+stop_service stop pve-cluster;
+
+
+# Start services in order
+start_service start pve-cluster;
+start_service start corosync;
+start_service start pvedaemon;
+start_service start pveproxy;
+start_service start pve-ha-lrm;
+start_service start pvescheduler;
