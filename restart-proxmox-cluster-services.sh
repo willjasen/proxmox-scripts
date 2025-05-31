@@ -47,18 +47,18 @@ start_service() {
 
 
 # Stop services in order
-stop_service stop pvescheduler;
-stop_service stop pve-ha-lrm;
-stop_service stop pveproxy;
-stop_service stop pvedaemon;
-stop_service stop corosync;
-stop_service stop pve-cluster;
+stop_service pvescheduler;
+stop_service pve-ha-lrm;
+stop_service pveproxy;
+stop_service pvedaemon;
+stop_service corosync;
+stop_service pve-cluster;
 
 
 # Start services in order
-start_service start pve-cluster;
-start_service start corosync;
-start_service start pvedaemon;
-start_service start pveproxy;
-start_service start pve-ha-lrm;
-start_service start pvescheduler;
+start_service pve-cluster;
+start_service corosync;
+start_service pvedaemon;
+start_service pveproxy;
+start_service pve-ha-lrm;
+start_service pvescheduler;
