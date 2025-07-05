@@ -35,7 +35,6 @@ start_service() {
 
 # Stop services in order
 stop_service pvescheduler;
-# stop_service pve-ha-lrm;
 stop_service pveproxy;
 stop_service pvedaemon;
 stop_service corosync;
@@ -46,5 +45,18 @@ start_service pve-cluster;
 start_service corosync;
 start_service pvedaemon;
 start_service pveproxy;
-# start_service pve-ha-lrm;
-start_service pvescheduler;
+
+# Wait for pvescheduler to be active
+PVE_SCHEDULER_RETRY_INTERVAL=20
+echo -e "${GREEN}Waiting for pvescheduler to become active...${RESET}"
+while true; do
+    systemctl is-active --quiet pvescheduler
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}pvescheduler is active.${RESET}"
+        break
+    else
+        echo -e "${GREEN}pvescheduler not active yet, attempting to start and checking again in ${PVE_SCHEDULER_RETRY_INTERVAL} seconds...${RESET}"
+        start_service pvescheduler;
+        sleep ${PVE_SCHEDULER_RETRY_INTERVAL}
+    fi
+done
