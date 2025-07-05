@@ -31,20 +31,7 @@ start_service() {
     echo -e "${GREEN} done in ${duration} seconds.${RESET}"
 }
 
-# stop_service corosync
-# stop_service pve-cluster
-# stop_service pvedaemon
-# stop_service pvestatd
-# stop_service pveproxy
-
-# start_service corosync
-# start_service pve-cluster
-# start_service pvedaemon
-# start_service pvestatd
-# start_service pveproxy
-
-
-
+# The order of these stops and starts correspond to the output of "systemd-analyze critical-chain"
 
 # Stop services in order
 stop_service pvescheduler;
@@ -53,7 +40,6 @@ stop_service pveproxy;
 stop_service pvedaemon;
 stop_service corosync;
 stop_service pve-cluster;
-
 
 # Start services in order
 start_service pve-cluster;
