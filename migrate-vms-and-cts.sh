@@ -45,6 +45,7 @@ do
     echo -e "${GREEN}Migration complete for CT $CT_ID."
     ) &
 done
+wait
 
 # Migrate VMs
 for VM_ID in "${VM_IDS[@]}"
@@ -55,11 +56,9 @@ do
     echo -e "${GREEN}Migration complete for VM $VM_ID."
     ) &
 done
-
-
-
 wait
 
+# Finish the script
 echo -e "${GREEN}All VM and CT migrations completed."
 end_time=$(date +%s)
 elapsed=$(( end_time - start_time ))
