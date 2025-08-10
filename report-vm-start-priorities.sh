@@ -5,10 +5,7 @@ printf "%-4s %-6s %-6s %-12s %-12s %s\n" "TYPE" "ID" "ONBOOT" "START ORDER" "STA
 
 # Function to get VM info
 get_vm_info() {
-	qm list | awk 'NR>1' | while read -r VMID STATUS REST; do
-		if [[ "$STATUS" != "running" ]]; then
-			continue
-		fi
+	for VMID in $(qm list | awk 'NR>1 {print $1}'); do
 		NAME=$(qm config $VMID | awk -F ': ' '/^name: /{print $2}')
 		ONBOOT=$(qm config $VMID | awk -F ': ' '/^onboot: /{print $2}')
 		ORDER=$(qm config $VMID | awk -F ': ' '/^order: /{print $2}')
@@ -16,16 +13,13 @@ get_vm_info() {
 		[ -z "$ONBOOT" ] && ONBOOT="no"
 		[ -z "$ORDER" ] && ORDER=""
 		[ -z "$STARTDELAY" ] && STARTDELAY=""
-		printf "%-4s %-6s %-6s %-12s %-12s %s\n" "VM" "$VMID" "$ONBOOT" "${ORDER:-}" "${STARTDELAY:-}" "$NAME"
+	printf "%-4s %-6s %-6s %-12s %-12s %s\n" "VM" "$VMID" "$ONBOOT" "${ORDER:-}" "${STARTDELAY:-}" "$NAME"
 	done
 }
 
 # Function to get CT info
 get_ct_info() {
-	pct list | awk 'NR>1' | while read -r CTID STATUS REST; do
-		if [[ "$STATUS" != "running" ]]; then
-			continue
-		fi
+	for CTID in $(pct list | awk 'NR>1 {print $1}'); do
 		NAME=$(pct config $CTID | awk -F ': ' '/^hostname: /{print $2}')
 		ONBOOT=$(pct config $CTID | awk -F ': ' '/^onboot: /{print $2}')
 		ORDER=$(pct config $CTID | awk -F ': ' '/^order: /{print $2}')
@@ -33,7 +27,7 @@ get_ct_info() {
 		[ -z "$ONBOOT" ] && ONBOOT="no"
 		[ -z "$ORDER" ] && ORDER=""
 		[ -z "$STARTDELAY" ] && STARTDELAY=""
-		printf "%-4s %-6s %-6s %-12s %-12s %s\n" "CT" "$CTID" "$ONBOOT" "${ORDER:-}" "${STARTDELAY:-}" "$NAME"
+	printf "%-4s %-6s %-6s %-12s %-12s %s\n" "CT" "$CTID" "$ONBOOT" "${ORDER:-}" "${STARTDELAY:-}" "$NAME"
 	done
 }
 
