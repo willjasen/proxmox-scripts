@@ -2,6 +2,7 @@
 # Report Proxmox VM and CT startup order
 
 printf "%-4s %-6s %-6s %-12s %-12s %s\n" "TYPE" "ID" "ONBOOT" "START ORDER" "START DELAY" "NAME"
+echo "TYPE|ID|ONBOOT|START ORDER|START DELAY|NAME"
 
 # Function to get VM info
 get_vm_info() {
@@ -13,7 +14,7 @@ get_vm_info() {
 		[ -z "$ONBOOT" ] && ONBOOT="no"
 		[ -z "$ORDER" ] && ORDER=""
 		[ -z "$STARTDELAY" ] && STARTDELAY=""
-	printf "%-4s %-6s %-6s %-12s %-12s %s\n" "VM" "$VMID" "$ONBOOT" "${ORDER:-}" "${STARTDELAY:-}" "$NAME"
+		echo "VM|$VMID|$ONBOOT|${ORDER:-}|${STARTDELAY:-}|$NAME"
 	done
 }
 
@@ -27,7 +28,7 @@ get_ct_info() {
 		[ -z "$ONBOOT" ] && ONBOOT="no"
 		[ -z "$ORDER" ] && ORDER=""
 		[ -z "$STARTDELAY" ] && STARTDELAY=""
-	printf "%-4s %-6s %-6s %-12s %-12s %s\n" "CT" "$CTID" "$ONBOOT" "${ORDER:-}" "${STARTDELAY:-}" "$NAME"
+		echo "CT|$CTID|$ONBOOT|${ORDER:-}|${STARTDELAY:-}|$NAME"
 	done
 }
 
@@ -35,4 +36,4 @@ get_ct_info() {
 {
 	get_vm_info
 	get_ct_info
-} | sort -k5,5n -k2,2n
+} | sort -t '|' -k4,4n -k2,2n | column -t -s '|'
