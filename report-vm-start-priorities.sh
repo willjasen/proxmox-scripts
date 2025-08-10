@@ -1,7 +1,7 @@
 #!/bin/bash
 # Report Proxmox VM and CT startup order
 
-echo -e "TYPE\tID\tNAME\tONBOOT\tSTART ORDER\tSTART DELAY"
+echo -e "TYPE\tID\tONBOOT\tSTART ORDER\tSTART DELAY\tNAME"
 
 # Function to get VM info
 get_vm_info() {
@@ -13,7 +13,7 @@ get_vm_info() {
 		[ -z "$ONBOOT" ] && ONBOOT="no"
 		[ -z "$ORDER" ] && ORDER=""
 		[ -z "$STARTDELAY" ] && STARTDELAY=""
-		echo -e "VM\t$VMID\t$NAME\t$ONBOOT\t$ORDER\t$STARTDELAY"
+	echo -e "VM\t$VMID\t$ONBOOT\t$ORDER\t$STARTDELAY\t$NAME"
 	done
 }
 
@@ -27,7 +27,7 @@ get_ct_info() {
 		[ -z "$ONBOOT" ] && ONBOOT="no"
 		[ -z "$ORDER" ] && ORDER=""
 		[ -z "$STARTDELAY" ] && STARTDELAY=""
-		echo -e "CT\t$CTID\t$NAME\t$ONBOOT\t$ORDER\t$STARTDELAY"
+	echo -e "CT\t$CTID\t$ONBOOT\t$ORDER\t$STARTDELAY\t$NAME"
 	done
 }
 
