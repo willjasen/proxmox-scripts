@@ -12,6 +12,11 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+if [ -z "$2" ]; then
+    echo "Error: No migrate tag was supplied. Please provide a migrate tag as the second parameter."
+    exit 1
+fi
+
 RED="\e[31m"
 GREEN="\e[32m"
 YELLOW="\e[33m"
@@ -19,11 +24,11 @@ BLUE="\e[34m"
 
 SOURCE_HOST=$(hostname)
 TARGET_HOST=$1
-MIGRATE_TAG="migrate-around"
+MIGRATE_TAG="$2"
 
 start_time=$(date +%s)
 
-# Get VM IDs from config files that include the tag "migrate-around"
+# Get VM IDs from config files that include the tag
 echo -e "${GREEN}Finding VM IDs with the tag '${MIGRATE_TAG}'..."
 VM_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/qemu-server/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
 
