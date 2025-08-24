@@ -69,7 +69,7 @@ for CT_ID in "${CT_IDS[@]}"
 do
     (
     echo -e "${YELLOW}Starting migration for CT $CT_ID to ${TARGET_HOST}..."
-    pct migrate $CT_ID $TARGET_HOST
+    pct migrate $CT_ID $TARGET_HOST --restart
     echo -e "${GREEN}Migration complete for CT $CT_ID."
     ) &
 done
