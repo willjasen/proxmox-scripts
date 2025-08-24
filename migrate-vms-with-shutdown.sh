@@ -28,12 +28,17 @@ MIGRATE_TAG="$2"
 
 start_time=$(date +%s)
 
-# Get VM IDs from config files that include the tag
+# Get VM IDs from config files that include the specified tag
 echo -e "${GREEN}Finding VM IDs with the tag '${MIGRATE_TAG}'..."
 VM_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/qemu-server/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
 
-if [ ${#VM_IDS[@]} -eq 0 ]; then
-    echo -e "${RED}No VMs with the tag '${MIGRATE_TAG}' were found."
+# Get CT IDs from config files that include the specified tag
+echo -e "${GREEN}Finding CT IDs with the tag '${MIGRATE_TAG}'..."
+CT_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/lxc/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
+
+# If no VMs or CTs were found, then exit
+if [ ${#VM_IDS[@]} -eq 0 ] && [ ${#CT_IDS[@]} -eq 0 ]; then
+    echo -e "${RED}No VMs or CTs with the tag '${MIGRATE_TAG}' were found."
     exit 1
 fi
 
@@ -59,6 +64,18 @@ fi
 # echo -e "${YELLOW}Sleeping..."
 # sleep 60
 
+# Migrate CTs
+for CT_ID in "${CT_IDS[@]}"
+do
+    (
+    echo -e "${YELLOW}Starting migration for CT $CT_ID to ${TARGET_HOST}..."
+    pct migrate $CT_ID $TARGET_HOST
+    echo -e "${GREEN}Migration complete for CT $CT_ID."
+    ) &
+done
+wait
+
+# Migrate VMs
 for VM_ID in "${VM_IDS[@]}"
 do
     (
@@ -90,7 +107,7 @@ do
 done
 wait
 
-echo -e "${GREEN}All VM migrations completed."
+echo -e "${GREEN}All VM and CT migrations completed."
 end_time=$(date +%s)
 elapsed=$(( end_time - start_time ))
 echo "Script runtime: ${elapsed} seconds."
