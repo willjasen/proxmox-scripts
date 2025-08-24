@@ -4,7 +4,7 @@
 ###
 ### This script will migrate VMs and CTs by shutting them down completely before migration,
 ### and starting them up once at the target host.
-### Only VMs and CTs with the tag "migrate-around" in their configuration will be migrated.
+### Only VMs and CTs with the tag "home-pve4" in their configuration will be migrated.
 ###
 
 if [ -z "$1" ]; then
@@ -19,15 +19,15 @@ BLUE="\e[34m"
 
 SOURCE_HOST=$(hostname)
 TARGET_HOST=$1
-MIGRATE_TAG="migrate-around"
+MIGRATE_TAG="home-pve4"
 
 start_time=$(date +%s)
 
-# Get VM IDs from config files that include the tag "migrate-around"
+# Get VM IDs from config files that include the tag "home-pve4"
 echo -e "${GREEN}Finding VM IDs with the tag '${MIGRATE_TAG}'..."
 VM_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/qemu-server/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
 
-# Get CT IDs from config files that include the tag "migrate-around"
+# Get CT IDs from config files that include the tag "home-pve4"
 echo -e "${GREEN}Finding CT IDs with the tag '${MIGRATE_TAG}'..."
 CT_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/lxc/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
 
