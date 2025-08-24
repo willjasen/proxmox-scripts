@@ -28,13 +28,13 @@ MIGRATE_TAG="$2"
 
 start_time=$(date +%s)
 
-# Get VM IDs from config files that include the specified tag
-echo -e "${GREEN}Finding VM IDs with the tag '${MIGRATE_TAG}'..."
-VM_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/qemu-server/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
-
 # Get CT IDs from config files that include the specified tag
 echo -e "${GREEN}Finding CT IDs with the tag '${MIGRATE_TAG}'..."
 CT_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/lxc/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
+
+# Get VM IDs from config files that include the specified tag
+echo -e "${GREEN}Finding VM IDs with the tag '${MIGRATE_TAG}'..."
+VM_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/qemu-server/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
 
 # If no VMs or CTs were found, then exit
 if [ ${#VM_IDS[@]} -eq 0 ] && [ ${#CT_IDS[@]} -eq 0 ]; then
