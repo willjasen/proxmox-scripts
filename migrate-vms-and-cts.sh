@@ -36,7 +36,7 @@ VM_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/qemu-server/*.conf | sed 's#.
 echo -e "${GREEN}Finding CT IDs with the tag '${MIGRATE_TAG}'..."
 CT_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/lxc/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
 
-
+# If no VMs or CTs were found, then exit
 if [ ${#VM_IDS[@]} -eq 0 ] && [ ${#CT_IDS[@]} -eq 0 ]; then
     echo -e "${RED}No VMs or CTs with the tag '${MIGRATE_TAG}' were found."
     exit 1
