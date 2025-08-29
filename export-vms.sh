@@ -31,7 +31,7 @@ df -Th $LOCAL_MOUNT
 for id in "${VMIDS[@]}"; do
   echo -e "${GREEN}Exporting VM $id ...${NC}"
   # Export a VM
-  qemu-img convert -p -O qcow2 -c -o compression_type=zstd \
+  qemu-img convert -v -p -O qcow2 -c -o compression_type=zstd \
     /dev/lvm-417/vm-${id}-disk-0 \
     $LOCAL_MOUNT/vm-${id}-disk-0.qcow2
 done
