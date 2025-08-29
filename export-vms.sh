@@ -21,8 +21,10 @@ REMOTE_HOST="nathaniels-mac-mini"
 REMOTE_DIR="/Users/willjasen/from-pve417"
 LOCAL_MOUNT="/mnt/to-$REMOTE_HOST"
 
-# Install dependencies
-apt-get update && apt-get install -y sshfs 
+# Install dependencies if not already installed
+if ! command -v sshfs &> /dev/null; then
+  apt-get update && apt-get install -y sshfs
+fi
 
 # Setup SSHFS mount
 mkdir -p $LOCAL_MOUNT
