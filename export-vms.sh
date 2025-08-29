@@ -25,6 +25,7 @@ LOCAL_MOUNT="/mnt/to-$REMOTE_HOST"
 apt-get update && apt-get install -y sshfs 
 
 # Setup SSHFS mount
+mkdir -p $LOCAL_MOUNT
 sshfs $SSH_USER@$REMOTE_HOST:$REMOTE_DIR $LOCAL_MOUNT
 df -Th $LOCAL_MOUNT
 
