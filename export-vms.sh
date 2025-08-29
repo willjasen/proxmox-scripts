@@ -37,5 +37,5 @@ for id in "${VMIDS[@]}"; do
   # Export a VM
   qemu-img convert -p -O qcow2 -c -o compression_type=zstd \
     /dev/lvm-417/vm-${id}-disk-0 \
-    /mnt/to-pve2/vm-${id}-disk-0.qcow2
+    $LOCAL_MOUNT/vm-${id}-disk-0.qcow2
 done
