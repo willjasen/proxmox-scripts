@@ -1,5 +1,9 @@
 #!/bin/bash
 
+###
+###  This script exports VMs from a Proxmox server to another server using SSHFS.
+###
+
 # Color variables
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
