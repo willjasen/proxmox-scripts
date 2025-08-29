@@ -9,13 +9,9 @@ GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
 # array of VM IDs to copy
-VMIDS=(701 702 703 703 705 706 707 709 710)
+VMIDS=(701 702 703 703 706 707 709 710)
 
-# Remote server to copy to
-# REMOTE_HOST="pve2"
-# REMOTE_DIR="/mnt/zfs/from-pve4"
-# LOCAL_MOUNT="/mnt/to-$REMOTE_HOST"
-
+# Remote server details
 SSH_USER="willjasen"
 REMOTE_HOST="nathaniels-mac-mini"
 REMOTE_DIR="/Users/willjasen/from-pve417"
