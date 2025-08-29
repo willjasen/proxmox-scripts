@@ -9,7 +9,7 @@ GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
 # array of VM IDs to copy
-VMIDS=(701 702 703 706 707 709 710)
+VMIDS=(701 702 706 707 709 710)
 
 # Remote server details
 SSH_USER="willjasen"
