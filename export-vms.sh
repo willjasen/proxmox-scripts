@@ -30,6 +30,11 @@ df -Th $LOCAL_MOUNT
 # Export the VMs
 for id in "${VMIDS[@]}"; do
   echo -e "${GREEN}Exporting VM $id ...${NC}"
+  # Check if the destination file already exists
+  if [ -f "$LOCAL_MOUNT/vm-${id}-disk-0.qcow2" ]; then
+    echo -e "${GREEN}$LOCAL_MOUNT/vm-${id}-disk-0.qcow2 already exists. Skipping export for VM $id.${NC}"
+    continue
+  fi
   # Export a VM
   qemu-img convert -p -O qcow2 -c -o compression_type=zstd \
     /dev/lvm-417/vm-${id}-disk-0 \
