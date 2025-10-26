@@ -1,0 +1,92 @@
+#!/bin/bash
+# filepath: proxmox-scripts/migrate-vms-with-shutdown.sh
+
+###
+### This script will migrate VMs by shutting them down completely before migration,
+### and starting them up once at the target host.
+### Only VMs with the tag "migrate-around" in their configuration will be migrated.
+###
+
+if [ -z "$1" ]; then
+    echo "Error: No target hostname was supplied. Please provide a target hostname."
+    exit 1
+fi
+
+if [ -z "$2" ]; then
+    echo "Error: No migrate tag was supplied. Please provide a migrate tag as the second parameter."
+    exit 1
+fi
+
+RED="\e[31m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+BLUE="\e[34m"
+WHITE="\e[37m"
+
+SOURCE_HOST=$(hostname)
+TARGET_HOST=$1
+MIGRATE_TAG="$2"
+
+start_time=$(date +%s)
+
+# Get CT IDs from config files that include the specified tag
+echo -e "${GREEN}Finding CT IDs with the tag '${MIGRATE_TAG}'..."
+CT_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/lxc/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
+
+# Get VM IDs from config files that include the specified tag
+echo -e "${GREEN}Finding VM IDs with the tag '${MIGRATE_TAG}'..."
+VM_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/qemu-server/*.conf | sed 's#.*/\([0-9]\+\)\.conf#\1#'))
+
+# If no VMs or CTs were found, then exit
+if [ ${#VM_IDS[@]} -eq 0 ] && [ ${#CT_IDS[@]} -eq 0 ]; then
+    echo -e "${RED}No VMs or CTs with the tag '${MIGRATE_TAG}' were found.${WHITE}"
+    exit 1
+fi
+
+# Migrate CTs
+for CT_ID in "${CT_IDS[@]}"
+do
+    (
+    echo -e "${YELLOW}Starting migration for CT $CT_ID to ${TARGET_HOST}..."
+    pct migrate $CT_ID $TARGET_HOST --restart
+    echo -e "${GREEN}Migration complete for CT $CT_ID."
+    ) &
+done
+wait
+
+# Migrate VMs
+for VM_ID in "${VM_IDS[@]}"
+do
+    (
+    echo -e "${YELLOW}Starting migration for VM $VM_ID to ${TARGET_HOST}..."
+
+    # Shut down the VM
+    echo -e "${GREEN}Shutting down VM $VM_ID..."
+    qm shutdown $VM_ID
+
+    # Wait for the VM to shut down completely
+    while qm status $VM_ID | grep -q "status: running"; do
+        sleep 1
+    done
+    echo -e "${GREEN}VM $VM_ID is shut down."
+
+    # Start the migration process
+    echo -e "${GREEN}Migrating VM $VM_ID..."
+    qm migrate $VM_ID $TARGET_HOST
+
+    # Assuming migration completes before proceeding
+    echo -e "${GREEN}Migration complete for VM $VM_ID."
+
+    # Start the VM on the target host
+    echo -e "${GREEN}Starting VM $VM_ID on target host..."
+    ssh root@$TARGET_HOST "qm start $VM_ID"
+
+    echo -e "${YELLOW}VM $VM_ID has been successfully migrated to ${TARGET_HOST}."
+    ) &
+done
+wait
+
+echo -e "${GREEN}All VM and CT migrations completed."
+end_time=$(date +%s)
+elapsed=$(( end_time - start_time ))
+echo "Script runtime: ${elapsed} seconds."
