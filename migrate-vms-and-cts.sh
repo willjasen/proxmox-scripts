@@ -19,6 +19,7 @@ RED="\e[31m"
 GREEN="\e[32m"
 YELLOW="\e[33m"
 BLUE="\e[34m"
+WHITE="\e[37m"
 
 
 SOURCE_HOST=$(hostname)
@@ -38,7 +39,7 @@ CT_IDS=($(grep -l "tags:.*${MIGRATE_TAG}" /etc/pve/lxc/*.conf | sed 's#.*/\([0-9
 
 # If no VMs or CTs were found, then exit
 if [ ${#VM_IDS[@]} -eq 0 ] && [ ${#CT_IDS[@]} -eq 0 ]; then
-    echo -e "${RED}No VMs or CTs with the tag '${MIGRATE_TAG}' were found."
+    echo -e "${RED}No VMs or CTs with the tag '${MIGRATE_TAG}' were found.${WHITE}"
     exit 1
 fi
 
