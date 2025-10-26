@@ -89,4 +89,4 @@ wait
 echo -e "${GREEN}All VM and CT migrations completed."
 end_time=$(date +%s)
 elapsed=$(( end_time - start_time ))
-echo "Script runtime: ${elapsed} seconds."
+echo "Script runtime: ${elapsed} seconds.${WHITE}"
