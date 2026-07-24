@@ -152,7 +152,7 @@ for ((batch_start = 0, batch_number = 1;
             label="CT"
         fi
 
-        echo "Requesting shutdown of $label $vmid on $node..."
+        echo "Requesting shutdown of $label $vmid${name:+ ($name)} on $node..."
         pvesh create "/nodes/$node/$guest_type/$vmid/status/shutdown" \
             --timeout "$SHUTDOWN_TIMEOUT" >/dev/null &
         PIDS+=("$!")
@@ -208,7 +208,7 @@ for ((batch_start = 0, batch_number = 1;
                 label="CT"
             fi
 
-            echo "Force-stopping $label $vmid on $node..."
+            echo "Force-stopping $label $vmid${name:+ ($name)} on $node..."
             pvesh create "/nodes/$node/$guest_type/$vmid/status/stop" \
                 >/dev/null &
             PIDS+=("$!")
@@ -250,7 +250,7 @@ for ((batch_start = 0, batch_number = 1;
                 else
                     label="CT"
                 fi
-                STILL_RUNNING+=("$label $vmid on $node")
+                STILL_RUNNING+=("$label $vmid${name:+ ($name)} on $node")
             fi
         done
 
