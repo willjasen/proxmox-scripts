@@ -8,6 +8,7 @@ set -u
 readonly SHUTDOWN_TIMEOUT=180
 readonly POLL_INTERVAL=3
 readonly POLL_TIMEOUT=$((SHUTDOWN_TIMEOUT + 30))
+readonly BATCH_SIZE=2
 
 declare -a GUESTS=()
 
@@ -130,66 +131,85 @@ if [[ "$confirmation" != "YES" ]]; then
     exit 1
 fi
 
-dispatch_failed=0
+total_batches=$(((${#GUESTS[@]} + BATCH_SIZE - 1) / BATCH_SIZE))
 
-for guest in "${GUESTS[@]}"; do
-    IFS='|' read -r guest_type vmid node name <<< "$guest"
-    if [[ "$guest_type" == "qemu" ]]; then
-        label="VM"
-    else
-        label="CT"
-    fi
+for ((batch_start = 0, batch_number = 1;
+      batch_start < ${#GUESTS[@]};
+      batch_start += BATCH_SIZE, batch_number += 1)); do
+    BATCH=("${GUESTS[@]:batch_start:BATCH_SIZE}")
+    PIDS=()
+    dispatch_failed=0
 
-    echo "Requesting shutdown of $label $vmid on $node..."
-    if ! pvesh create "/nodes/$node/$guest_type/$vmid/status/shutdown" \
-        --timeout "$SHUTDOWN_TIMEOUT" >/dev/null; then
-        echo "Failed to dispatch shutdown for $label $vmid on $node." >&2
-        dispatch_failed=1
-    fi
-done
+    echo
+    echo "Starting shutdown batch $batch_number of $total_batches..."
 
-echo "Waiting for selected guests to stop..."
-deadline=$((SECONDS + POLL_TIMEOUT))
-
-while (( SECONDS < deadline )); do
-    running_count=0
-
-    for guest in "${GUESTS[@]}"; do
+    for guest in "${BATCH[@]}"; do
         IFS='|' read -r guest_type vmid node name <<< "$guest"
-        if guest_is_running "$guest_type" "$node" "$vmid"; then
-            ((running_count += 1))
-        fi
-    done
-
-    (( running_count == 0 )) && break
-    sleep "$POLL_INTERVAL"
-done
-
-declare -a STILL_RUNNING=()
-
-for guest in "${GUESTS[@]}"; do
-    IFS='|' read -r guest_type vmid node name <<< "$guest"
-    if guest_is_running "$guest_type" "$node" "$vmid"; then
         if [[ "$guest_type" == "qemu" ]]; then
             label="VM"
         else
             label="CT"
         fi
-        STILL_RUNNING+=("$label $vmid on $node")
+
+        echo "Requesting shutdown of $label $vmid on $node..."
+        pvesh create "/nodes/$node/$guest_type/$vmid/status/shutdown" \
+            --timeout "$SHUTDOWN_TIMEOUT" >/dev/null &
+        PIDS+=("$!")
+    done
+
+    for pid in "${PIDS[@]}"; do
+        if ! wait "$pid"; then
+            dispatch_failed=1
+        fi
+    done
+
+    if (( dispatch_failed != 0 )); then
+        echo "A shutdown request in batch $batch_number failed." >&2
+        echo "No additional batches will be started." >&2
+        exit 1
     fi
+
+    echo "Waiting for batch $batch_number to stop..."
+    deadline=$((SECONDS + POLL_TIMEOUT))
+
+    while (( SECONDS < deadline )); do
+        running_count=0
+
+        for guest in "${BATCH[@]}"; do
+            IFS='|' read -r guest_type vmid node name <<< "$guest"
+            if guest_is_running "$guest_type" "$node" "$vmid"; then
+                ((running_count += 1))
+            fi
+        done
+
+        (( running_count == 0 )) && break
+        sleep "$POLL_INTERVAL"
+    done
+
+    STILL_RUNNING=()
+
+    for guest in "${BATCH[@]}"; do
+        IFS='|' read -r guest_type vmid node name <<< "$guest"
+        if guest_is_running "$guest_type" "$node" "$vmid"; then
+            if [[ "$guest_type" == "qemu" ]]; then
+                label="VM"
+            else
+                label="CT"
+            fi
+            STILL_RUNNING+=("$label $vmid on $node")
+        fi
+    done
+
+    if (( ${#STILL_RUNNING[@]} > 0 )); then
+        echo
+        echo "The following guests in batch $batch_number are still running:"
+        printf '  %s\n' "${STILL_RUNNING[@]}"
+        echo "No additional batches will be started."
+        echo "Review them before using a force-stop command."
+        exit 1
+    fi
+
+    echo "Batch $batch_number stopped successfully."
 done
-
-if (( ${#STILL_RUNNING[@]} > 0 )); then
-    echo
-    echo "The following guests are still running:"
-    printf '  %s\n' "${STILL_RUNNING[@]}"
-    echo "Review them before using a force-stop command."
-    exit 1
-fi
-
-if (( dispatch_failed != 0 )); then
-    echo "All selected guests are stopped, but one or more requests reported an error."
-    exit 1
-fi
 
 echo "All selected guests shut down successfully."
