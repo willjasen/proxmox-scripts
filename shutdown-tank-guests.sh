@@ -5,9 +5,9 @@
 
 set -u
 
-readonly SHUTDOWN_TIMEOUT=180
+readonly SHUTDOWN_TIMEOUT=30
 readonly POLL_INTERVAL=3
-readonly POLL_TIMEOUT=$((SHUTDOWN_TIMEOUT + 30))
+readonly FORCE_STOP_TIMEOUT=30
 readonly BATCH_SIZE=2
 
 declare -a GUESTS=()
@@ -124,7 +124,7 @@ if command -v ha-manager >/dev/null 2>&1 &&
     echo
 fi
 
-read -r -p "Type YES to gracefully shut down all guests listed above: " confirmation
+read -r -p "Type YES to shut down these guests (force-stop after 30 seconds): " confirmation
 
 if [[ "$confirmation" != "YES" ]]; then
     echo "Cancelled."
@@ -142,6 +142,7 @@ for ((batch_start = 0, batch_number = 1;
 
     echo
     echo "Starting shutdown batch $batch_number of $total_batches..."
+    deadline=$((SECONDS + SHUTDOWN_TIMEOUT))
 
     for guest in "${BATCH[@]}"; do
         IFS='|' read -r guest_type vmid node name <<< "$guest"
@@ -164,13 +165,11 @@ for ((batch_start = 0, batch_number = 1;
     done
 
     if (( dispatch_failed != 0 )); then
-        echo "A shutdown request in batch $batch_number failed." >&2
-        echo "No additional batches will be started." >&2
-        exit 1
+        echo "A graceful shutdown request in batch $batch_number failed." >&2
+        echo "Any guest still running will receive a force-stop request." >&2
     fi
 
-    echo "Waiting for batch $batch_number to stop..."
-    deadline=$((SECONDS + POLL_TIMEOUT))
+    echo "Waiting up to 30 seconds for batch $batch_number to stop gracefully..."
 
     while (( SECONDS < deadline )); do
         running_count=0
@@ -186,27 +185,82 @@ for ((batch_start = 0, batch_number = 1;
         sleep "$POLL_INTERVAL"
     done
 
-    STILL_RUNNING=()
+    FORCE_GUESTS=()
 
     for guest in "${BATCH[@]}"; do
         IFS='|' read -r guest_type vmid node name <<< "$guest"
         if guest_is_running "$guest_type" "$node" "$vmid"; then
+            FORCE_GUESTS+=("$guest")
+        fi
+    done
+
+    if (( ${#FORCE_GUESTS[@]} > 0 )); then
+        echo
+        echo "Graceful shutdown deadline reached; force-stopping remaining guests..."
+        PIDS=()
+        force_dispatch_failed=0
+
+        for guest in "${FORCE_GUESTS[@]}"; do
+            IFS='|' read -r guest_type vmid node name <<< "$guest"
             if [[ "$guest_type" == "qemu" ]]; then
                 label="VM"
             else
                 label="CT"
             fi
-            STILL_RUNNING+=("$label $vmid on $node")
-        fi
-    done
 
-    if (( ${#STILL_RUNNING[@]} > 0 )); then
-        echo
-        echo "The following guests in batch $batch_number are still running:"
-        printf '  %s\n' "${STILL_RUNNING[@]}"
-        echo "No additional batches will be started."
-        echo "Review them before using a force-stop command."
-        exit 1
+            echo "Force-stopping $label $vmid on $node..."
+            pvesh create "/nodes/$node/$guest_type/$vmid/status/stop" \
+                >/dev/null &
+            PIDS+=("$!")
+        done
+
+        for pid in "${PIDS[@]}"; do
+            if ! wait "$pid"; then
+                force_dispatch_failed=1
+            fi
+        done
+
+        if (( force_dispatch_failed != 0 )); then
+            echo "A force-stop request in batch $batch_number failed." >&2
+            echo "No additional batches will be started." >&2
+            exit 1
+        fi
+
+        deadline=$((SECONDS + FORCE_STOP_TIMEOUT))
+        while (( SECONDS < deadline )); do
+            running_count=0
+
+            for guest in "${FORCE_GUESTS[@]}"; do
+                IFS='|' read -r guest_type vmid node name <<< "$guest"
+                if guest_is_running "$guest_type" "$node" "$vmid"; then
+                    ((running_count += 1))
+                fi
+            done
+
+            (( running_count == 0 )) && break
+            sleep "$POLL_INTERVAL"
+        done
+
+        STILL_RUNNING=()
+        for guest in "${FORCE_GUESTS[@]}"; do
+            IFS='|' read -r guest_type vmid node name <<< "$guest"
+            if guest_is_running "$guest_type" "$node" "$vmid"; then
+                if [[ "$guest_type" == "qemu" ]]; then
+                    label="VM"
+                else
+                    label="CT"
+                fi
+                STILL_RUNNING+=("$label $vmid on $node")
+            fi
+        done
+
+        if (( ${#STILL_RUNNING[@]} > 0 )); then
+            echo
+            echo "The following guests remain running after force-stop:"
+            printf '  %s\n' "${STILL_RUNNING[@]}"
+            echo "No additional batches will be started."
+            exit 1
+        fi
     fi
 
     echo "Batch $batch_number stopped successfully."
