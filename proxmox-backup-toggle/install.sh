@@ -16,6 +16,29 @@ if [[ ! -f "$SCRIPT_DIR/.env" ]]; then
     exit 1
 fi
 
+# Load and validate the administrator-provided configuration before installing.
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/.env"
+
+: "${VMID:?VMID is missing or empty in $SCRIPT_DIR/.env}"
+: "${STORAGE:?STORAGE is missing or empty in $SCRIPT_DIR/.env}"
+: "${DISK_NUMBER:?DISK_NUMBER is missing or empty in $SCRIPT_DIR/.env}"
+
+if [[ ! "$VMID" =~ ^[0-9]+$ ]]; then
+    echo "VMID must be a number in $SCRIPT_DIR/.env" >&2
+    exit 1
+fi
+
+if [[ ! "$DISK_NUMBER" =~ ^[0-9]+$ ]]; then
+    echo "DISK_NUMBER must be a number in $SCRIPT_DIR/.env" >&2
+    exit 1
+fi
+
+if [[ "$STORAGE" =~ [[:space:]] ]]; then
+    echo "STORAGE must not contain whitespace in $SCRIPT_DIR/.env" >&2
+    exit 1
+fi
+
 install -m 0755 "$SCRIPT_DIR/proxmox-backup-toggle" "$INSTALL_DIR/proxmox-backup-toggle"
 install -m 0600 "$SCRIPT_DIR/.env" "$INSTALL_DIR/.env"
 install -m 0644 \
