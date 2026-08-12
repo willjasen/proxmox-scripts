@@ -1,0 +1,7 @@
+[Unit]
+Description=Include VM disk in nightly Proxmox backups
+After=pve-cluster.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/proxmox-backup-toggle include

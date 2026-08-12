@@ -1,0 +1,7 @@
+[Unit]
+Description=Exclude VM disk from daytime Proxmox backups
+After=pve-cluster.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/proxmox-backup-toggle exclude

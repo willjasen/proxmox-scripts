@@ -1,0 +1,53 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/.env}"
+
+if [[ ! -r "$ENV_FILE" ]]; then
+    echo "Environment file not found: $ENV_FILE" >&2
+    exit 1
+fi
+
+# The .env file is administrator-controlled and should contain only assignments.
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+
+: "${VMID:?VMID is not set in $ENV_FILE}"
+: "${STORAGE:?STORAGE is not set in $ENV_FILE}"
+: "${DISK_NUMBER:?DISK_NUMBER is not set in $ENV_FILE}"
+
+DISK="${STORAGE}:vm-${VMID}-disk-${DISK_NUMBER}"
+
+usage() {
+    echo "Usage: $0 {exclude|include}" >&2
+    exit 2
+}
+
+[[ $# -eq 1 ]] || usage
+case "$1" in
+    exclude) backup=0 ;;
+    include) backup=1 ;;
+    *) usage ;;
+esac
+
+command -v qm >/dev/null || {
+    echo "qm command not found" >&2
+    exit 1
+}
+
+# Find whichever bus (scsi0, virtio0, sata0, etc.) owns the target disk.
+config_line=$(qm config "$VMID" | awk -F': ' -v disk="$DISK" '$2 ~ ("^" disk "(,|$)") { print; exit }')
+[[ -n "$config_line" ]] || {
+    echo "Disk $DISK was not found in VM $VMID configuration" >&2
+    exit 1
+}
+
+device=${config_line%%:*}
+value=${config_line#*: }
+
+# Preserve existing disk options while replacing/adding backup=.
+value=$(printf '%s\n' "$value" | sed -E 's/(^|,)backup=[01]//g; s/^,//; s/,,+/,/g; s/,$//')
+qm set "$VMID" "--$device" "$value,backup=$backup"
+
+echo "VM $VMID: $DISK backup=$backup ($device)"

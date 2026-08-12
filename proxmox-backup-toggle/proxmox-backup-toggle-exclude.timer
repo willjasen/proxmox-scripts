@@ -1,0 +1,8 @@
+[Unit]
+Description=Daytime Proxmox backup exclusion
+
+[Timer]
+OnCalendar=*-*-* 06:30:00
+
+[Install]
+WantedBy=timers.target
