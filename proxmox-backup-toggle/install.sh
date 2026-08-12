@@ -1,8 +1,22 @@
 #!/bin/bash
 set -euo pipefail
 
+if [[ -t 1 && "${TERM:-dumb}" != "dumb" ]]; then
+    RED=$'\033[31m'
+    GREEN=$'\033[32m'
+    RESET=$'\033[0m'
+else
+    RED=''
+    GREEN=''
+    RESET=''
+fi
+
+error() {
+    printf '%s\n' "${RED}Error: $*${RESET}" >&2
+}
+
 if [[ "$(id -u)" -ne 0 ]]; then
-    echo "Run this installer as root: sudo ./install.sh" >&2
+    error "Run this installer as root: sudo ./install.sh"
     exit 1
 fi
 
@@ -73,5 +87,5 @@ systemctl daemon-reload
 systemctl enable --now proxmox-backup-toggle-exclude.timer
 systemctl enable --now proxmox-backup-toggle-include.timer
 
-echo "Installed. Timers are enabled and running."
+printf '%s\n' "${GREEN}Installed. Timers are enabled and running.${RESET}"
 systemctl list-timers --all 'proxmox-backup-toggle-*' --no-pager
