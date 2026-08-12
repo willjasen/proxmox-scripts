@@ -4,10 +4,22 @@ set -euo pipefail
 if [[ -t 1 && "${TERM:-dumb}" != "dumb" ]]; then
     RED=$'\033[31m'
     GREEN=$'\033[32m'
+    BRIGHT_RED=$'\033[91m'
+    BRIGHT_GREEN=$'\033[92m'
+    BRIGHT_YELLOW=$'\033[93m'
+    BRIGHT_BLUE=$'\033[94m'
+    BRIGHT_MAGENTA=$'\033[95m'
+    BRIGHT_CYAN=$'\033[96m'
     RESET=$'\033[0m'
 else
     RED=''
     GREEN=''
+    BRIGHT_RED=''
+    BRIGHT_GREEN=''
+    BRIGHT_YELLOW=''
+    BRIGHT_BLUE=''
+    BRIGHT_MAGENTA=''
+    BRIGHT_CYAN=''
     RESET=''
 fi
 
@@ -89,10 +101,35 @@ systemctl enable --now proxmox-backup-toggle-include.timer
 
 printf '%s\n' "${GREEN}Installed. Timers are enabled and running.${RESET}"
 if [[ -n "$GREEN" ]]; then
-    SYSTEMD_COLORS=0 systemctl list-timers --all 'proxmox-backup-toggle-*' --no-pager |
-        while IFS= read -r timer_line; do
-            printf '%s\n' "${GREEN}${timer_line}${RESET}"
-        done
+    SYSTEMD_COLORS=0 LC_ALL=C systemctl list-timers --all 'proxmox-backup-toggle-*' --no-pager |
+        awk \
+            -v next_color="$BRIGHT_CYAN" \
+            -v left_color="$BRIGHT_YELLOW" \
+            -v last_color="$BRIGHT_MAGENTA" \
+            -v passed_color="$BRIGHT_BLUE" \
+            -v unit_color="$BRIGHT_GREEN" \
+            -v activates_color="$BRIGHT_RED" \
+            -v reset="$RESET" '
+            NR == 1 {
+                next_pos = index($0, "NEXT")
+                left_pos = index($0, "LEFT")
+                last_pos = index($0, "LAST")
+                passed_pos = index($0, "PASSED")
+                unit_pos = index($0, "UNIT")
+                activates_pos = index($0, "ACTIVATES")
+            }
+            NF == 0 || /timers? listed\.$/ { print; next }
+            next_pos > 0 {
+                printf "%s%s%s", next_color, substr($0, next_pos, left_pos - next_pos), reset
+                printf "%s%s%s", left_color, substr($0, left_pos, last_pos - left_pos), reset
+                printf "%s%s%s", last_color, substr($0, last_pos, passed_pos - last_pos), reset
+                printf "%s%s%s", passed_color, substr($0, passed_pos, unit_pos - passed_pos), reset
+                printf "%s%s%s", unit_color, substr($0, unit_pos, activates_pos - unit_pos), reset
+                printf "%s%s%s\n", activates_color, substr($0, activates_pos), reset
+                next
+            }
+            { print }
+        '
 else
     systemctl list-timers --all 'proxmox-backup-toggle-*' --no-pager
 fi
