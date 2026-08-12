@@ -88,4 +88,11 @@ systemctl enable --now proxmox-backup-toggle-exclude.timer
 systemctl enable --now proxmox-backup-toggle-include.timer
 
 printf '%s\n' "${GREEN}Installed. Timers are enabled and running.${RESET}"
-SYSTEMD_COLORS=1 systemctl list-timers --all 'proxmox-backup-toggle-*' --no-pager
+if [[ -n "$GREEN" ]]; then
+    SYSTEMD_COLORS=0 systemctl list-timers --all 'proxmox-backup-toggle-*' --no-pager |
+        while IFS= read -r timer_line; do
+            printf '%s\n' "${GREEN}${timer_line}${RESET}"
+        done
+else
+    systemctl list-timers --all 'proxmox-backup-toggle-*' --no-pager
+fi
