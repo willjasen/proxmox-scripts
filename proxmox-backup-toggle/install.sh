@@ -11,9 +11,30 @@ INSTALL_DIR=/usr/local/sbin
 UNIT_DIR=/etc/systemd/system
 
 if [[ ! -f "$SCRIPT_DIR/.env" ]]; then
-    echo "Missing $SCRIPT_DIR/.env" >&2
-    echo "Copy .env.example to .env and edit it first." >&2
-    exit 1
+    echo "No .env file found. Let's create one."
+
+    while :; do
+        read -r -p "VM ID: " VMID
+        [[ "$VMID" =~ ^[0-9]+$ ]] && break
+        echo "VM ID must be a number." >&2
+    done
+
+    while :; do
+        read -r -p "Storage (for example, local-zfs): " STORAGE
+        [[ -n "$STORAGE" && ! "$STORAGE" =~ [[:space:]] ]] && break
+        echo "Storage must be non-empty and contain no whitespace." >&2
+    done
+
+    while :; do
+        read -r -p "Disk number (for example, 0): " DISK_NUMBER
+        [[ "$DISK_NUMBER" =~ ^[0-9]+$ ]] && break
+        echo "Disk number must be a number." >&2
+    done
+
+    umask 077
+    printf 'VMID=%s\nSTORAGE=%s\nDISK_NUMBER=%s\n' \
+        "$VMID" "$STORAGE" "$DISK_NUMBER" > "$SCRIPT_DIR/.env"
+    echo "Created $SCRIPT_DIR/.env"
 fi
 
 # Load and validate the administrator-provided configuration before installing.
