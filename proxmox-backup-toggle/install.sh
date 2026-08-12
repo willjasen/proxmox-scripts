@@ -122,11 +122,15 @@ if [[ -n "$GREEN" ]]; then
             NF == 0 || /timers? listed\.$/ { print; next }
             next_pos > 0 {
                 printf "%s%s%s", next_color, substr($0, next_pos, left_pos - next_pos), reset
+                printf "%s", column_separator
                 printf "%s%s%s", left_color, substr($0, left_pos, last_pos - left_pos), reset
+                printf "%s", column_separator
                 printf "%s%s%s", last_color, substr($0, last_pos, passed_pos - last_pos), reset
                 printf "%s", column_separator
                 printf "%s%s%s", passed_color, substr($0, passed_pos, unit_pos - passed_pos), reset
+                printf "%s", column_separator
                 printf "%s%s%s", unit_color, substr($0, unit_pos, activates_pos - unit_pos), reset
+                printf "%s", column_separator
                 printf "%s%s%s\n", activates_color, substr($0, activates_pos), reset
                 next
             }
