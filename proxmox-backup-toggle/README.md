@@ -42,6 +42,14 @@ sudo /usr/local/sbin/proxmox-backup-toggle exclude
 sudo /usr/local/sbin/proxmox-backup-toggle include
 ```
 
+For terminals that do not report color support correctly, force ANSI colors with:
+
+```bash
+sudo /usr/local/sbin/proxmox-backup-toggle --color=always exclude
+```
+
+Use `--color=never` to explicitly disable them.
+
 Check the resulting VM configuration with:
 
 ```bash
