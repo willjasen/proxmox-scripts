@@ -4,8 +4,8 @@ Temporarily excludes one VM disk from daytime Proxmox backups, then includes it 
 
 The default schedule is:
 
-- 06:30: set the configured disk to `backup=0`
-- 17:30: set the configured disk to `backup=1`
+- 05:45: set the configured disk to `backup=0`
+- 18:30: set the configured disk to `backup=1`
 
 The schedule uses the Proxmox host's local time.
 

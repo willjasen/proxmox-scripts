@@ -2,7 +2,7 @@
 Description=Daytime Proxmox backup exclusion
 
 [Timer]
-OnCalendar=*-*-* 06:30:00
+OnCalendar=*-*-* 05:45:00
 
 [Install]
 WantedBy=timers.target
