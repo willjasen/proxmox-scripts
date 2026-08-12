@@ -46,6 +46,13 @@ config_line=$(qm config "$VMID" | awk -F': ' -v disk="$DISK" '$2 ~ ("^" disk "(,
 device=${config_line%%:*}
 value=${config_line#*: }
 
+# Avoid rewriting the VM configuration when it already has the desired state.
+current_backup=$(printf '%s\n' "$value" | sed -nE 's/(^|,)backup=([01])(,|$)/\2/p')
+if [[ "$current_backup" == "$backup" ]]; then
+    echo "VM $VMID: $DISK already has backup=$backup ($device); no change needed"
+    exit 0
+fi
+
 # Preserve existing disk options while replacing/adding backup=.
 value=$(printf '%s\n' "$value" | sed -E 's/(^|,)backup=[01]//g; s/^,//; s/,,+/,/g; s/,$//')
 qm set "$VMID" "--$device" "$value,backup=$backup"
