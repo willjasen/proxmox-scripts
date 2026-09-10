@@ -17,10 +17,65 @@ BLUE="\033[34m"
 MAGENTA="\033[35m"
 CYAN="\033[36m"
 
+#
+# If a CT was running before we stopped it, this variable is set
+# until we've successfully started it again.
+#
+RESTART_CT=""
+RESTART_CT_NAME=""
+
 die() {
     echo -e "${RED}${BOLD}ERROR:${RESET} $*" >&2
     exit 1
 }
+
+restart_pending_ct() {
+    if [[ -z "${RESTART_CT:-}" ]]; then
+        return 0
+    fi
+
+    local status="unknown"
+
+    status="$(pct status "$RESTART_CT" 2>/dev/null | awk '{print $2}' || true)"
+
+    if [[ "$status" == "running" ]]; then
+        RESTART_CT=""
+        RESTART_CT_NAME=""
+        return 0
+    fi
+
+    echo
+    echo -e "${YELLOW}${BOLD}Recovery:${RESET} CT $RESTART_CT (${RESTART_CT_NAME:-unknown}) was running before migration."
+    echo -e "${YELLOW}Attempting to start it before exiting...${RESET}"
+
+    if pct start "$RESTART_CT"; then
+        sleep 2
+
+        status="$(pct status "$RESTART_CT" 2>/dev/null | awk '{print $2}' || true)"
+
+        if [[ "$status" == "running" ]]; then
+            echo -e "${GREEN}${BOLD}CT $RESTART_CT (${RESTART_CT_NAME:-unknown}) is running again.${RESET}"
+            RESTART_CT=""
+            RESTART_CT_NAME=""
+        else
+            echo -e "${RED}${BOLD}WARNING:${RESET} CT $RESTART_CT did not report running after start."
+        fi
+    else
+        echo -e "${RED}${BOLD}WARNING:${RESET} Failed to restart CT $RESTART_CT."
+    fi
+}
+
+cleanup() {
+    local rc=$?
+
+    restart_pending_ct || true
+
+    exit "$rc"
+}
+
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 check_node() {
     [[ -n "$NODE" ]] || \
@@ -382,6 +437,13 @@ migrate_ct() {
     if [[ "$status" == "running" ]]; then
         was_running=1
 
+        #
+        # From this point forward, if the script exits for ANY reason,
+        # the EXIT trap will attempt to start this CT again.
+        #
+        RESTART_CT="$ctid"
+        RESTART_CT_NAME="$name"
+
         echo -e "${YELLOW}CT $ctid ($name) is running.${RESET}"
         echo "Requesting graceful shutdown..."
 
@@ -455,6 +517,13 @@ migrate_ct() {
 
         if [[ "$status" == "running" ]]; then
             echo -e "${GREEN}${BOLD}CT $ctid ($name) is running.${RESET}"
+
+            #
+            # Successful restart. Clear recovery state so the EXIT
+            # handler does not try to start it again.
+            #
+            RESTART_CT=""
+            RESTART_CT_NAME=""
         else
             die "CT $ctid failed to return to running state."
         fi
@@ -596,6 +665,11 @@ Override storage names:
 
 The node is automatically detected from the host on which the
 script is executed.
+
+Running containers are tracked before shutdown and are restarted
+after migration. If migration fails or the script is interrupted
+after stopping a previously running CT, the cleanup handler will
+attempt to start that CT again.
 USAGE
 }
 
