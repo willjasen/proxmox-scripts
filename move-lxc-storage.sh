@@ -5,8 +5,21 @@ SOURCE="${SOURCE:-tank-containers}"
 TARGET="${TARGET:-local-zfs}"
 NODE="$(hostname -s)"
 
+# ANSI colors
+RESET="\033[0m"
+BOLD="\033[1m"
+DIM="\033[2m"
+
+RED="\033[31m"
+GREEN="\033[32m"
+YELLOW="\033[33m"
+BLUE="\033[34m"
+MAGENTA="\033[35m"
+CYAN="\033[36m"
+WHITE="\033[37m"
+
 die() {
-    echo "ERROR: $*" >&2
+    echo -e "${RED}${BOLD}ERROR:${RESET} $*" >&2
     exit 1
 }
 
@@ -15,7 +28,7 @@ check_node() {
         die "Unable to determine the local hostname."
 
     [[ -d "/etc/pve/nodes/${NODE}" ]] || {
-        echo "ERROR: Detected hostname '$NODE', but this does not appear"
+        echo -e "${RED}${BOLD}ERROR:${RESET} Detected hostname '$NODE', but this does not appear"
         echo "       to match a Proxmox cluster node."
         echo
         echo "Expected path:"
@@ -58,6 +71,43 @@ for r in json.load(sys.stdin):
         print(r.get('node', ''))
         break
 "
+}
+
+get_ct_name() {
+    local ctid="$1"
+    local config="/etc/pve/nodes/${NODE}/lxc/${ctid}.conf"
+    local name=""
+
+    if [[ -f "$config" ]]; then
+        name="$(
+            awk -F': ' '
+                $1 == "hostname" {
+                    print $2
+                    exit
+                }
+            ' "$config"
+        )"
+    fi
+
+    if [[ -z "$name" ]]; then
+        name="$(
+            pvesh get /cluster/resources --type vm --output-format json |
+                python3 -c "
+import json, sys
+
+vmid = int('$ctid')
+
+for r in json.load(sys.stdin):
+    if r.get('type') == 'lxc' and r.get('vmid') == vmid:
+        print(r.get('name', '') or '')
+        break
+"
+        )"
+    fi
+
+    [[ -n "$name" ]] || name="unknown"
+
+    echo "$name"
 }
 
 get_node_cts() {
@@ -119,24 +169,64 @@ verify_ct_ownership() {
         die "CT $ctid config does not exist at $config."
 }
 
+print_separator() {
+    echo -e "${BLUE}============================================================${RESET}"
+}
+
+print_ct_header() {
+    local ctid="$1"
+    local status="$2"
+    local name
+    local node
+
+    name="$(get_ct_name "$ctid")"
+    node="$(get_ct_node "$ctid")"
+
+    print_separator
+    echo -e "${BOLD}${CYAN}CT $ctid${RESET} ${DIM}(${name})${RESET}"
+
+    if [[ "$status" == "running" ]]; then
+        echo -e "Status: ${GREEN}${BOLD}${status}${RESET}"
+    elif [[ "$status" == "stopped" ]]; then
+        echo -e "Status: ${YELLOW}${BOLD}${status}${RESET}"
+    else
+        echo -e "Status: ${MAGENTA}${BOLD}${status}${RESET}"
+    fi
+
+    echo -e "Node:   ${CYAN}${node}${RESET}"
+    echo
+}
+
 list_node_cts() {
     check_node
 
-    echo "Node: $NODE"
+    echo -e "${BOLD}Node:${RESET} ${CYAN}$NODE${RESET}"
     echo
-    echo "LXC containers currently assigned to this node:"
+    echo -e "${BOLD}LXC containers currently assigned to this node:${RESET}"
     echo
 
     local found=0
     local ctid
     local status
+    local name
 
     while read -r ctid; do
         [[ -n "$ctid" ]] || continue
 
         status="$(pct status "$ctid" 2>/dev/null | awk '{print $2}')"
+        name="$(get_ct_name "$ctid")"
 
-        printf "CT %-8s %-10s\n" "$ctid" "${status:-unknown}"
+        if [[ "$status" == "running" ]]; then
+            printf "CT %-8s %-25s ${GREEN}%-10s${RESET}\n" \
+                "$ctid" "$name" "${status:-unknown}"
+        elif [[ "$status" == "stopped" ]]; then
+            printf "CT %-8s %-25s ${YELLOW}%-10s${RESET}\n" \
+                "$ctid" "$name" "${status:-unknown}"
+        else
+            printf "CT %-8s %-25s ${MAGENTA}%-10s${RESET}\n" \
+                "$ctid" "$name" "${status:-unknown}"
+        fi
+
         found=1
     done < <(get_node_cts)
 
@@ -150,11 +240,11 @@ preview() {
     check_storage "$SOURCE"
     check_storage "$TARGET"
 
-    echo "Node:           $NODE"
-    echo "Source storage: $SOURCE"
-    echo "Target storage: $TARGET"
+    echo -e "${BOLD}Node:${RESET}           ${CYAN}$NODE${RESET}"
+    echo -e "${BOLD}Source storage:${RESET} ${YELLOW}$SOURCE${RESET}"
+    echo -e "${BOLD}Target storage:${RESET} ${GREEN}$TARGET${RESET}"
     echo
-    echo "Containers and volumes that would be migrated:"
+    echo -e "${BOLD}Containers and volumes that would be migrated:${RESET}"
     echo
 
     local found=0
@@ -170,28 +260,27 @@ preview() {
         config="/etc/pve/nodes/${NODE}/lxc/${ctid}.conf"
         status="$(pct status "$ctid" | awk '{print $2}')"
 
-        echo "============================================================"
-        echo "CT $ctid"
-        echo "Status: $status"
-        echo "Node:   $(get_ct_node "$ctid")"
-        echo
+        print_ct_header "$ctid" "$status"
 
         grep -E \
             "^(rootfs|mp[0-9]+|unused[0-9]+): ${SOURCE}:" \
             "$config" |
-            sed 's/^/  /'
+            sed "s/^/  /" |
+            while IFS= read -r line; do
+                echo -e "${YELLOW}${line}${RESET}"
+            done
 
         echo
         found=1
     done < <(get_candidate_cts)
 
     if [[ "$found" -eq 0 ]]; then
-        echo "No containers on '$NODE' have volumes on '$SOURCE'."
+        echo -e "${GREEN}No containers on '$NODE' have volumes on '$SOURCE'.${RESET}"
         return 0
     fi
 
-    echo "============================================================"
-    echo "Preview complete. No changes were made."
+    print_separator
+    echo -e "${GREEN}${BOLD}Preview complete.${RESET} No changes were made."
 }
 
 migrate_ct() {
@@ -207,30 +296,29 @@ migrate_ct() {
     local status
     local was_running=0
     local reported_node
+    local name
     local -a volumes
+
+    name="$(get_ct_name "$ctid")"
 
     mapfile -t volumes < <(get_source_volumes "$ctid")
 
     if (( ${#volumes[@]} == 0 )); then
-        echo "CT $ctid has no volumes on '$SOURCE'. Skipping."
+        echo -e "${YELLOW}CT $ctid ($name) has no volumes on '$SOURCE'. Skipping.${RESET}"
         return 0
     fi
 
-    echo "============================================================"
-    echo "CT $ctid"
-    echo "Node: $NODE"
-    echo "============================================================"
-
     status="$(pct status "$ctid" | awk '{print $2}')"
+    print_ct_header "$ctid" "$status"
 
     if [[ "$status" == "running" ]]; then
         was_running=1
 
-        echo "CT $ctid is running."
+        echo -e "${YELLOW}CT $ctid ($name) is running.${RESET}"
         echo "Requesting graceful shutdown..."
 
         if ! pct shutdown "$ctid" --timeout 120; then
-            echo "Graceful shutdown timed out."
+            echo -e "${YELLOW}Graceful shutdown timed out.${RESET}"
             echo "Stopping CT $ctid..."
             pct stop "$ctid"
         fi
@@ -240,9 +328,9 @@ migrate_ct() {
         [[ "$status" == "stopped" ]] || \
             die "CT $ctid did not stop."
 
-        echo "CT $ctid is stopped."
+        echo -e "${GREEN}CT $ctid is stopped.${RESET}"
     else
-        echo "CT $ctid is already stopped."
+        echo -e "${DIM}CT $ctid is already stopped.${RESET}"
     fi
 
     echo
@@ -261,28 +349,34 @@ migrate_ct() {
             die "CT $ctid $vol no longer references '$SOURCE'."
         fi
 
-        echo "Moving CT $ctid volume $vol:"
-        grep -E "^${vol}: " "$config" | sed 's/^/  /'
+        echo -e "${BOLD}Moving CT $ctid ($name) volume $vol:${RESET}"
+
+        grep -E "^${vol}: " "$config" |
+            while IFS= read -r line; do
+                echo -e "  ${YELLOW}${line}${RESET}"
+            done
+
         echo
-        echo "Destination storage:"
-        echo "  $TARGET"
+        echo -e "Destination storage: ${GREEN}${TARGET}${RESET}"
         echo
 
         pct move-volume "$ctid" "$vol" "$TARGET" --delete 1
 
         echo
-        echo "Completed CT $ctid $vol."
+        echo -e "${GREEN}${BOLD}Completed:${RESET} CT $ctid ($name) $vol"
         echo
     done
 
-    echo "Current CT storage configuration:"
+    echo -e "${BOLD}Current CT storage configuration:${RESET}"
+
     grep -E \
         '^(rootfs|mp[0-9]+|unused[0-9]+):' \
-        "$config" || true
+        "$config" |
+        sed 's/^/  /' || true
 
     if [[ "$was_running" -eq 1 ]]; then
         echo
-        echo "CT $ctid was running before migration."
+        echo -e "${YELLOW}CT $ctid ($name) was running before migration.${RESET}"
         echo "Starting CT $ctid..."
 
         pct start "$ctid"
@@ -292,7 +386,7 @@ migrate_ct() {
         status="$(pct status "$ctid" | awk '{print $2}')"
 
         if [[ "$status" == "running" ]]; then
-            echo "CT $ctid is running."
+            echo -e "${GREEN}${BOLD}CT $ctid ($name) is running.${RESET}"
         else
             die "CT $ctid failed to return to running state."
         fi
@@ -312,40 +406,45 @@ migrate() {
     mapfile -t candidates < <(get_candidate_cts)
 
     if (( ${#candidates[@]} == 0 )); then
-        echo "No containers on '$NODE' have volumes on '$SOURCE'."
+        echo -e "${GREEN}No containers on '$NODE' have volumes on '$SOURCE'.${RESET}"
         exit 0
     fi
 
-    echo "Node:           $NODE"
-    echo "Source storage: $SOURCE"
-    echo "Target storage: $TARGET"
+    echo -e "${BOLD}Node:${RESET}           ${CYAN}$NODE${RESET}"
+    echo -e "${BOLD}Source storage:${RESET} ${YELLOW}$SOURCE${RESET}"
+    echo -e "${BOLD}Target storage:${RESET} ${GREEN}$TARGET${RESET}"
     echo
-    echo "Migration candidates:"
-    printf '  CT %s\n' "${candidates[@]}"
+    echo -e "${BOLD}Migration candidates:${RESET}"
+
+    for ctid in "${candidates[@]}"; do
+        echo -e "  CT ${CYAN}${ctid}${RESET} ($(get_ct_name "$ctid"))"
+    done
+
     echo
 
     for ctid in "${candidates[@]}"; do
         migrate_ct "$ctid"
     done
 
-    echo "============================================================"
-    echo "Migration pass complete."
-    echo "============================================================"
+    print_separator
+    echo -e "${GREEN}${BOLD}Migration pass complete.${RESET}"
+    print_separator
 }
 
 verify() {
     check_node
 
-    echo "Node:           $NODE"
-    echo "Source storage: $SOURCE"
+    echo -e "${BOLD}Node:${RESET}           ${CYAN}$NODE${RESET}"
+    echo -e "${BOLD}Source storage:${RESET} ${YELLOW}$SOURCE${RESET}"
     echo
-    echo "Checking for remaining source-storage CT volumes..."
+    echo -e "${BOLD}Checking for remaining source-storage CT volumes...${RESET}"
     echo
 
     local found=0
     local ctid
     local config
     local matches
+    local name
 
     while read -r ctid; do
         [[ -n "$ctid" ]] || continue
@@ -353,6 +452,7 @@ verify() {
         verify_ct_ownership "$ctid"
 
         config="/etc/pve/nodes/${NODE}/lxc/${ctid}.conf"
+        name="$(get_ct_name "$ctid")"
 
         matches="$(
             grep -E \
@@ -361,7 +461,7 @@ verify() {
         )"
 
         if [[ -n "$matches" ]]; then
-            echo "CT $ctid still has volumes on '$SOURCE':"
+            echo -e "${YELLOW}${BOLD}CT $ctid ($name) still has volumes on '$SOURCE':${RESET}"
             echo "$matches" | sed 's/^/  /'
             echo
             found=1
@@ -369,9 +469,9 @@ verify() {
     done < <(get_node_cts)
 
     if [[ "$found" -eq 0 ]]; then
-        echo "SUCCESS: No CT volumes belonging to $NODE remain on '$SOURCE'."
+        echo -e "${GREEN}${BOLD}SUCCESS:${RESET} No CT volumes belonging to $NODE remain on '$SOURCE'."
     else
-        echo "WARNING: Some CT volumes on $NODE still remain on '$SOURCE'."
+        echo -e "${YELLOW}${BOLD}WARNING:${RESET} Some CT volumes on $NODE still remain on '$SOURCE'."
         return 2
     fi
 }
@@ -379,11 +479,11 @@ verify() {
 show_config() {
     check_node
 
-    echo "Detected configuration:"
+    echo -e "${BOLD}Detected configuration:${RESET}"
     echo
-    echo "  Node:   $NODE"
-    echo "  Source: $SOURCE"
-    echo "  Target: $TARGET"
+    echo -e "  Node:   ${CYAN}$NODE${RESET}"
+    echo -e "  Source: ${YELLOW}$SOURCE${RESET}"
+    echo -e "  Target: ${GREEN}$TARGET${RESET}"
 }
 
 usage() {
