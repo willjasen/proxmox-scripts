@@ -17,10 +17,6 @@ BLUE="\033[34m"
 MAGENTA="\033[35m"
 CYAN="\033[36m"
 
-#
-# If a CT was running before we stopped it, this variable is set
-# until we've successfully started it again.
-#
 RESTART_CT=""
 RESTART_CT_NAME=""
 
@@ -82,7 +78,7 @@ check_node() {
         die "Unable to determine the local hostname."
 
     [[ -d "/etc/pve/nodes/${NODE}" ]] || {
-        echo -e "${RED}${BOLD}ERROR:${RESET} Detected hostname '$NODE', but this does not appear"
+        echo -e "${RED}${BOLD}ERROR:${RESET} Detected hostname '$NODE', but it does not appear"
         echo "       to match a Proxmox cluster node."
         echo
         echo "Expected path:"
@@ -175,6 +171,18 @@ for r in json.load(sys.stdin):
 "
 }
 
+#
+# Return ONLY Proxmox storage-backed CT volumes that are actually on SOURCE.
+#
+# Examples included:
+#   rootfs: tank-containers:1814/vm-1814-disk-0.raw,size=3G
+#   mp0: tank-containers:1814/vm-1814-disk-1.raw,mp=/data,size=20G
+#
+# Examples ignored completely:
+#   mp0: /mnt/media,mp=/media
+#   mp1: /dev/dri,mp=/dev/dri
+#   mp2: /some/host/path,mp=/data
+#
 get_source_volumes() {
     local ctid="$1"
     local config="/etc/pve/nodes/${NODE}/lxc/${ctid}.conf"
@@ -200,9 +208,15 @@ get_candidate_cts() {
 
         [[ -f "$config" ]] || continue
 
-        if grep -Eq \
-            "^(rootfs|mp[0-9]+|unused[0-9]+): ${SOURCE}:" \
-            "$config"
+        if awk -F': ' -v src="$SOURCE:" '
+            $1 ~ /^(rootfs|mp[0-9]+|unused[0-9]+)$/ &&
+            index($2, src) == 1 {
+                found=1
+            }
+            END {
+                exit !found
+            }
+        ' "$config"
         then
             echo "$ctid"
         fi
@@ -346,6 +360,7 @@ preview() {
     local ctid
     local status
     local config
+    local vol
     local line
     local size
     local -a all_sizes=()
@@ -362,7 +377,10 @@ preview() {
 
         print_ct_header "$ctid" "$status"
 
-        while IFS= read -r line; do
+        while read -r vol; do
+            [[ -n "$vol" ]] || continue
+
+            line="$(grep -E "^${vol}: ${SOURCE}:" "$config" || true)"
             [[ -n "$line" ]] || continue
 
             echo -e "${YELLOW}  ${line}${RESET}"
@@ -376,11 +394,7 @@ preview() {
             if [[ -n "$size" ]]; then
                 all_sizes+=("$size")
             fi
-        done < <(
-            grep -E \
-                "^(rootfs|mp[0-9]+|unused[0-9]+): ${SOURCE}:" \
-                "$config"
-        )
+        done < <(get_source_volumes "$ctid")
 
         echo
         ((container_count += 1))
@@ -420,6 +434,7 @@ migrate_ct() {
     local was_running=0
     local reported_node
     local name
+    local line
     local -a volumes
 
     name="$(get_ct_name "$ctid")"
@@ -437,10 +452,6 @@ migrate_ct() {
     if [[ "$status" == "running" ]]; then
         was_running=1
 
-        #
-        # From this point forward, if the script exits for ANY reason,
-        # the EXIT trap will attempt to start this CT again.
-        #
         RESTART_CT="$ctid"
         RESTART_CT_NAME="$name"
 
@@ -465,8 +476,16 @@ migrate_ct() {
 
     echo
 
+    #
+    # Re-read the list after shutdown.
+    # This list contains ONLY entries whose actual backing volume
+    # begins with "$SOURCE:".
+    #
     mapfile -t volumes < <(get_source_volumes "$ctid")
 
+    #
+    # Move volumes strictly one at a time.
+    #
     for vol in "${volumes[@]}"; do
         verify_ct_ownership "$ctid"
 
@@ -475,21 +494,25 @@ migrate_ct() {
         [[ "$reported_node" == "$NODE" ]] || \
             die "CT $ctid moved to '$reported_node' before moving $vol."
 
-        if ! grep -Eq "^${vol}: ${SOURCE}:" "$config"; then
+        #
+        # Fetch only the exact storage-backed volume line.
+        # Bind mounts and passthrough mounts cannot match this.
+        #
+        line="$(grep -E "^${vol}: ${SOURCE}:" "$config" || true)"
+
+        [[ -n "$line" ]] || \
             die "CT $ctid $vol no longer references '$SOURCE'."
-        fi
 
         echo -e "${BOLD}Moving CT $ctid ($name) volume $vol:${RESET}"
-
-        grep -E "^${vol}: " "$config" |
-            while IFS= read -r line; do
-                echo -e "  ${YELLOW}${line}${RESET}"
-            done
-
+        echo -e "  ${YELLOW}${line}${RESET}"
         echo
         echo -e "Destination storage: ${GREEN}${TARGET}${RESET}"
         echo
 
+        #
+        # This command blocks until finished.
+        # No volume moves are run in parallel.
+        #
         pct move-volume "$ctid" "$vol" "$TARGET" --delete 1
 
         echo
@@ -518,10 +541,6 @@ migrate_ct() {
         if [[ "$status" == "running" ]]; then
             echo -e "${GREEN}${BOLD}CT $ctid ($name) is running.${RESET}"
 
-            #
-            # Successful restart. Clear recovery state so the EXIT
-            # handler does not try to start it again.
-            #
             RESTART_CT=""
             RESTART_CT_NAME=""
         else
@@ -559,6 +578,9 @@ migrate() {
 
     echo
 
+    #
+    # Containers are processed strictly one at a time.
+    #
     for ctid in "${candidates[@]}"; do
         migrate_ct "$ctid"
     done
@@ -580,7 +602,8 @@ verify() {
     local found=0
     local ctid
     local config
-    local matches
+    local vol
+    local line
     local name
 
     while read -r ctid; do
@@ -591,18 +614,19 @@ verify() {
         config="/etc/pve/nodes/${NODE}/lxc/${ctid}.conf"
         name="$(get_ct_name "$ctid")"
 
-        matches="$(
-            grep -E \
-                "^(rootfs|mp[0-9]+|unused[0-9]+): ${SOURCE}:" \
-                "$config" || true
-        )"
+        while read -r vol; do
+            [[ -n "$vol" ]] || continue
 
-        if [[ -n "$matches" ]]; then
-            echo -e "${YELLOW}${BOLD}CT $ctid ($name) still has volumes on '$SOURCE':${RESET}"
-            echo "$matches" | sed 's/^/  /'
-            echo
-            found=1
-        fi
+            line="$(grep -E "^${vol}: ${SOURCE}:" "$config" || true)"
+
+            if [[ -n "$line" ]]; then
+                echo -e "${YELLOW}${BOLD}CT $ctid ($name) still has a volume on '$SOURCE':${RESET}"
+                echo "  $line"
+                echo
+                found=1
+            fi
+        done < <(get_source_volumes "$ctid")
+
     done < <(get_node_cts)
 
     if [[ "$found" -eq 0 ]]; then
@@ -634,7 +658,8 @@ Usage:
       List all LXC containers currently assigned to this node.
 
   $0 preview
-      Show every CT and volume that would be moved.
+      Show every CT and SOURCE-backed volume that would be moved.
+      Bind mounts and passthrough mounts are ignored completely.
       Includes estimated total provisioned volume size.
       Makes no changes.
 
@@ -642,11 +667,11 @@ Usage:
       Migrate only one CT.
 
   $0 migrate
-      Stop running candidate CTs, move all matching volumes,
-      and restart only CTs that were running beforehand.
+      Stop running candidate CTs, move only volumes actually
+      backed by SOURCE, and restart CTs that were running.
 
   $0 verify
-      Check this node for remaining volumes on the source storage.
+      Check this node for remaining SOURCE-backed CT volumes.
 
   $0 help
       Show this help.
@@ -666,10 +691,25 @@ Override storage names:
 The node is automatically detected from the host on which the
 script is executed.
 
-Running containers are tracked before shutdown and are restarted
-after migration. If migration fails or the script is interrupted
-after stopping a previously running CT, the cleanup handler will
-attempt to start that CT again.
+Only volume entries whose backing volume begins with:
+
+  \$SOURCE:
+
+are migrated.
+
+Bind mounts and passthrough mounts such as:
+
+  mp0: /mnt/media,mp=/media
+  mp1: /dev/dri,mp=/dev/dri
+
+are ignored and never modified.
+
+Containers and volumes are processed strictly sequentially:
+one container at a time and one volume at a time.
+
+Running containers are restarted after migration. If migration
+fails or the script is interrupted after stopping a previously
+running CT, the cleanup handler attempts to start that CT again.
 USAGE
 }
 
