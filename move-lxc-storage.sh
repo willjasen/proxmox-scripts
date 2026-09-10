@@ -16,7 +16,6 @@ YELLOW="\033[33m"
 BLUE="\033[34m"
 MAGENTA="\033[35m"
 CYAN="\033[36m"
-WHITE="\033[37m"
 
 die() {
     echo -e "${RED}${BOLD}ERROR:${RESET} $*" >&2
@@ -169,6 +168,47 @@ verify_ct_ownership() {
         die "CT $ctid config does not exist at $config."
 }
 
+human_sum_sizes() {
+    python3 -c '
+import sys
+import re
+
+total = 0
+
+units = {
+    "B": 1,
+    "K": 1024,
+    "M": 1024**2,
+    "G": 1024**3,
+    "T": 1024**4,
+    "P": 1024**5,
+}
+
+for line in sys.stdin:
+    line = line.strip()
+
+    m = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)([BKMGTPE]?)", line, re.I)
+    if not m:
+        continue
+
+    value = float(m.group(1))
+    unit = m.group(2).upper() or "B"
+
+    if unit in units:
+        total += int(value * units[unit])
+
+def human(n):
+    for unit in ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]:
+        if n < 1024 or unit == "PiB":
+            if unit == "B":
+                return f"{n:.0f} {unit}"
+            return f"{n:.2f} {unit}"
+        n /= 1024
+
+print(human(total))
+'
+}
+
 print_separator() {
     echo -e "${BLUE}============================================================${RESET}"
 }
@@ -251,6 +291,11 @@ preview() {
     local ctid
     local status
     local config
+    local line
+    local size
+    local -a all_sizes=()
+    local volume_count=0
+    local container_count=0
 
     while read -r ctid; do
         [[ -n "$ctid" ]] || continue
@@ -262,15 +307,28 @@ preview() {
 
         print_ct_header "$ctid" "$status"
 
-        grep -E \
-            "^(rootfs|mp[0-9]+|unused[0-9]+): ${SOURCE}:" \
-            "$config" |
-            sed "s/^/  /" |
-            while IFS= read -r line; do
-                echo -e "${YELLOW}${line}${RESET}"
-            done
+        while IFS= read -r line; do
+            [[ -n "$line" ]] || continue
+
+            echo -e "${YELLOW}  ${line}${RESET}"
+
+            ((volume_count += 1))
+
+            size="$(
+                sed -nE 's/.*(^|,)size=([^,]+).*/\2/p' <<< "$line"
+            )"
+
+            if [[ -n "$size" ]]; then
+                all_sizes+=("$size")
+            fi
+        done < <(
+            grep -E \
+                "^(rootfs|mp[0-9]+|unused[0-9]+): ${SOURCE}:" \
+                "$config"
+        )
 
         echo
+        ((container_count += 1))
         found=1
     done < <(get_candidate_cts)
 
@@ -279,7 +337,17 @@ preview() {
         return 0
     fi
 
+    local total_size
+    total_size="$(
+        printf '%s\n' "${all_sizes[@]}" | human_sum_sizes
+    )"
+
     print_separator
+    echo -e "${BOLD}Preview summary:${RESET}"
+    echo -e "  Containers:           ${CYAN}${container_count}${RESET}"
+    echo -e "  Volumes:              ${CYAN}${volume_count}${RESET}"
+    echo -e "  Estimated total size: ${MAGENTA}${BOLD}${total_size}${RESET}"
+    echo
     echo -e "${GREEN}${BOLD}Preview complete.${RESET} No changes were made."
 }
 
@@ -498,6 +566,7 @@ Usage:
 
   $0 preview
       Show every CT and volume that would be moved.
+      Includes estimated total provisioned volume size.
       Makes no changes.
 
   $0 migrate-ct <CTID>
