@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOURCE="${SOURCE:-tank-containers}"
+SOURCE="${SOURCE:-tank}"
 TARGET="${TARGET:-local-zfs}"
 NODE="$(hostname -s)"
 
