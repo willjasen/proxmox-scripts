@@ -12,8 +12,12 @@ EXCLUDE_FILE="${EXCLUDE_FILE:-${INSTALL_DIR}/exclude}"
 INCLUDE_FILE="${INCLUDE_FILE:-${INSTALL_DIR}/include}"
 ON_CALENDAR="${ON_CALENDAR:-03:15}"
 BACKUP_ID="${BACKUP_ID:-$(hostname -s)}"
-NAMESPACE="${NAMESPACE:-hosts}"
+NAMESPACE="${NAMESPACE:-}"
+NAMESPACE_SET=0
 PBS_FINGERPRINT_INPUT="${PBS_FINGERPRINT:-}"
+PBS_HOST_INPUT="${PBS_HOST:-}"
+PBS_DATASTORE_INPUT="${PBS_DATASTORE:-}"
+PBS_API_TOKEN_INPUT="${PBS_API_TOKEN:-}"
 DRY_RUN=0
 FORCE=0
 ENABLE_TIMER=1
@@ -35,7 +39,10 @@ Options:
   --storage NAME          Proxmox PBS storage name (default: PBS1)
   --schedule SPEC        systemd OnCalendar value (default: ask, prefilled with 03:15)
   --backup-id NAME       PBS backup-id (default: short hostname)
-  --namespace NAME       PBS namespace (default: hosts; use empty string to disable)
+  --namespace NAME       PBS namespace (default: ask, prefilled from storage when available)
+  --pbs-host HOST        PBS host or host:port (Tailscale names are okay)
+  --datastore NAME       PBS datastore
+  --api-token NAME       PBS API token name, such as backups@pbs!pve-cluster
   --credentials PATH     Credential file with PBS_REPOSITORY and PBS_PASSWORD or PBS_PASSWORD_FILE
   --fingerprint VALUE    PBS certificate fingerprint when needed
   --no-enable            Install files but do not enable/start the timer
@@ -47,9 +54,6 @@ Examples:
   sudo $0
   sudo $0 --schedule 'Mon..Sat 03:15'
   sudo PBS_STORAGE=PBS1 NAMESPACE=hosts $0
-
-When prompted, use a PBS_REPOSITORY such as:
-  root@pam!host-backup@pbs1:datastore
 EOF
 }
 
@@ -125,6 +129,59 @@ storage_value() {
     ' /etc/pve/storage.cfg
 }
 
+list_pbs_storages() {
+    [[ -r /etc/pve/storage.cfg ]] || return 0
+
+    awk '$1 == "pbs:" { print $2 }' /etc/pve/storage.cfg
+}
+
+storage_exists() {
+    local storage="$1"
+
+    list_pbs_storages | awk -v storage="$storage" '$1 == storage { found=1 } END { exit !found }'
+}
+
+resolve_pbs_storage() {
+    local requested="$1"
+    local matches=()
+    local selected=""
+
+    if storage_exists "$requested"; then
+        PBS_STORAGE="$requested"
+        return 0
+    fi
+
+    mapfile -t matches < <(
+        list_pbs_storages |
+            awk -v requested="$requested" '
+                BEGIN {
+                    requested_lc = tolower(requested)
+                }
+                {
+                    storage_lc = tolower($1)
+                    if (storage_lc == requested_lc || storage_lc ~ "^" requested_lc "[-_].*") {
+                        print $1
+                    }
+                }
+            '
+    )
+
+    if [[ "${#matches[@]}" -eq 1 ]]; then
+        PBS_STORAGE="${matches[0]}"
+        info "Using PBS storage '$PBS_STORAGE' for requested storage '$requested'"
+        return 0
+    fi
+
+    if [[ "${#matches[@]}" -gt 1 ]]; then
+        warn "Multiple PBS storages match '$requested': ${matches[*]}"
+    else
+        warn "PBS storage '$requested' was not found."
+    fi
+
+    selected="$(prompt_value "PBS storage name" "${matches[0]:-$requested}")"
+    PBS_STORAGE="$selected"
+}
+
 prompt_value() {
     local prompt="$1"
     local default_value="${2:-}"
@@ -139,6 +196,22 @@ prompt_value() {
         while [[ -z "$value" ]]; do
             read -r -p "$prompt: " value
         done
+        printf '%s\n' "$value"
+    fi
+}
+
+prompt_optional_value() {
+    local prompt="$1"
+    local default_value="${2:-}"
+    local value=""
+
+    [[ -t 0 ]] || die "$prompt is required, but this is not an interactive terminal."
+
+    if [[ -n "$default_value" ]]; then
+        read -r -p "$prompt [$default_value]: " value
+        printf '%s\n' "${value:-$default_value}"
+    else
+        read -r -p "$prompt: " value
         printf '%s\n' "$value"
     fi
 }
@@ -177,13 +250,51 @@ write_pbs_credentials() {
     chmod 0600 "$credentials_file"
 }
 
+repository_token() {
+    local repository="$1"
+
+    [[ "$repository" == *@* ]] || return 0
+    printf '%s\n' "${repository%@*}"
+}
+
+repository_host() {
+    local repository="$1"
+    local host_datastore=""
+
+    [[ "$repository" == *@* ]] || return 0
+    host_datastore="${repository##*@}"
+    [[ "$host_datastore" == *:* ]] || return 0
+    printf '%s\n' "${host_datastore%:*}"
+}
+
+repository_datastore() {
+    local repository="$1"
+    local host_datastore=""
+
+    [[ "$repository" == *@* ]] || return 0
+    host_datastore="${repository##*@}"
+    [[ "$host_datastore" == *:* ]] || return 0
+    printf '%s\n' "${host_datastore##*:}"
+}
+
 prompt_and_write_pbs_credentials() {
     local credentials_file="$1"
     local default_repository="$2"
-    local repository="$default_repository"
+    local pbs_host="${PBS_HOST_INPUT:-}"
+    local datastore="${PBS_DATASTORE_INPUT:-}"
+    local api_token="${PBS_API_TOKEN_INPUT:-}"
+    local repository=""
     local token_secret=""
 
-    repository="$(prompt_value "PBS_REPOSITORY, like root@pam!host-backup@pbs1:datastore" "$repository")"
+    pbs_host="${pbs_host:-$(repository_host "$default_repository")}"
+    datastore="${datastore:-$(repository_datastore "$default_repository")}"
+    api_token="${api_token:-$(repository_token "$default_repository")}"
+
+    pbs_host="$(prompt_value "PBS host or host:port" "$pbs_host")"
+    datastore="$(prompt_value "PBS datastore" "$datastore")"
+    api_token="$(prompt_value "PBS API token name" "$api_token")"
+    repository="${api_token}@${pbs_host}:${datastore}"
+
     token_secret="$(prompt_secret "PBS API token secret")"
     write_pbs_credentials "$credentials_file" "$repository" "$token_secret"
 }
@@ -202,14 +313,43 @@ prompt_schedule_settings() {
     fi
 }
 
+prompt_namespace() {
+    if [[ "$DRY_RUN" -eq 1 || "$NAMESPACE_SET" -eq 1 ]]; then
+        return 0
+    fi
+
+    NAMESPACE="$(prompt_optional_value "PBS namespace (blank for datastore root)" "$NAMESPACE")"
+}
+
+host_backup_namespace() {
+    local storage_namespace="$1"
+
+    if [[ -z "$storage_namespace" ]]; then
+        printf '%s\n' "hosts"
+    elif [[ "$storage_namespace" == */* ]]; then
+        printf '%s\n' "${storage_namespace%/*}/hosts"
+    else
+        printf '%s\n' "hosts"
+    fi
+}
+
 validate_pbs_credentials() {
     local credentials_file="$1"
     local fingerprint="$2"
+    local output=""
+    local rc=0
 
-    [[ -n "$credentials_file" ]] || return 1
-    [[ -r "$credentials_file" ]] || return 1
+    if [[ -z "$credentials_file" ]]; then
+        plain_warn "No PBS credential file was configured."
+        return 1
+    fi
 
-    (
+    if [[ ! -r "$credentials_file" ]]; then
+        plain_warn "Cannot read PBS credential file: $credentials_file"
+        return 1
+    fi
+
+    output="$(
         # The credential file is administrator-controlled and contains shell assignments.
         # shellcheck disable=SC1090
         source "$credentials_file"
@@ -226,8 +366,17 @@ validate_pbs_credentials() {
             exit 1
         fi
 
-        proxmox-backup-client status >/dev/null 2>&1
-    )
+        proxmox-backup-client status
+    )" 2>&1 || rc=$?
+
+    if [[ "$rc" -ne 0 ]]; then
+        if [[ -n "$output" ]]; then
+            printf '%s\n' "$output" >&2
+        fi
+        return "$rc"
+    fi
+
+    return 0
 }
 
 resolve_pbs_settings() {
@@ -271,8 +420,8 @@ resolve_pbs_settings() {
     while ! validate_pbs_credentials "$credentials_file" "$fingerprint"; do
         plain_warn "The PBS credential file is missing or failed validation."
         credentials_file="$(prompt_value "Where should the PBS credentials be saved" "$credentials_file")"
-        prompt_and_write_pbs_credentials "$credentials_file" "$detected_repository"
         fingerprint="$(prompt_value "PBS_FINGERPRINT (blank if not needed)" "$fingerprint")"
+        prompt_and_write_pbs_credentials "$credentials_file" "$detected_repository"
     done
 
     PBS_CREDENTIALS_FILE_RESOLVED="$credentials_file"
@@ -300,6 +449,22 @@ while [[ $# -gt 0 ]]; do
         --namespace)
             [[ $# -ge 2 ]] || die "--namespace requires a value"
             NAMESPACE="$2"
+            NAMESPACE_SET=1
+            shift 2
+            ;;
+        --pbs-host)
+            [[ $# -ge 2 ]] || die "--pbs-host requires a value"
+            PBS_HOST_INPUT="$2"
+            shift 2
+            ;;
+        --datastore)
+            [[ $# -ge 2 ]] || die "--datastore requires a value"
+            PBS_DATASTORE_INPUT="$2"
+            shift 2
+            ;;
+        --api-token)
+            [[ $# -ge 2 ]] || die "--api-token requires a value"
+            PBS_API_TOKEN_INPUT="$2"
             shift 2
             ;;
         --credentials)
@@ -339,6 +504,8 @@ done
 command -v proxmox-backup-client >/dev/null || die "proxmox-backup-client is not installed."
 command -v systemctl >/dev/null || die "systemctl is not available."
 
+resolve_pbs_storage "$PBS_STORAGE"
+
 server="$(storage_value server)"
 datastore="$(storage_value datastore)"
 username="$(storage_value username)"
@@ -346,16 +513,14 @@ fingerprint="$(storage_value fingerprint)"
 port="$(storage_value port)"
 storage_namespace="$(storage_value namespace)"
 
-if [[ -z "$NAMESPACE" && -n "$storage_namespace" ]]; then
-    NAMESPACE="$storage_namespace"
-fi
+NAMESPACE="${NAMESPACE:-$(host_backup_namespace "$storage_namespace")}"
 
 password_file="/etc/pve/priv/storage/${PBS_STORAGE}.pw"
 
 repository=""
 if [[ -n "$server" && -n "$datastore" && -n "$username" ]]; then
-    repository_host="$server"
-    if [[ -n "$port" ]]; then
+    repository_host="${PBS_HOST_INPUT:-$server}"
+    if [[ -n "$port" && "$repository_host" != *:* ]]; then
         repository_host="${repository_host}:${port}"
     fi
     repository="${username}@${repository_host}:${datastore}"
@@ -366,6 +531,7 @@ credentials_file="$PBS_CREDENTIALS_FILE_RESOLVED"
 fingerprint="$PBS_FINGERPRINT_RESOLVED"
 
 prompt_schedule_settings
+prompt_namespace
 
 runner_content='#!/usr/bin/env bash
 set -euo pipefail
