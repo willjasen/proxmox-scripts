@@ -570,6 +570,15 @@ fi
 : "${PBS_REPOSITORY:?PBS_REPOSITORY is required in $PBS_CREDENTIALS_FILE}"
 export PBS_REPOSITORY
 
+if [[ -n "${PBS_PASSWORD_FILE:-}" ]]; then
+    export PBS_PASSWORD_FILE
+elif [[ -n "${PBS_PASSWORD:-}" ]]; then
+    export PBS_PASSWORD
+else
+    echo "PBS_PASSWORD or PBS_PASSWORD_FILE is required in $PBS_CREDENTIALS_FILE" >&2
+    exit 1
+fi
+
 args=(backup "--backup-id" "$BACKUP_ID")
 
 if [[ -n "${PBS_NAMESPACE:-}" ]]; then
