@@ -632,8 +632,13 @@ exclude_content='# Exclude volatile or generated host paths from root.pxar.
 /var/log/journal'
 
 include_content='# archive:path entries passed to proxmox-backup-client.
-# Keep root.pxar:/ unless you intentionally want a narrower host backup.
-root:/'
+# Keep this focused on host configuration, not VM/CT data or the full root filesystem.
+etc:/etc
+pve-cluster:/etc/pve
+root:/root
+usr-local:/usr/local
+opt-proxmox-scripts:/opt/proxmox-scripts
+var-spool-cron:/var/spool/cron'
 
 service_content="[Unit]
 Description=Proxmox host backup to ${PBS_STORAGE}
