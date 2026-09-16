@@ -7,4 +7,4 @@ various custom scripts for proxmox
 - manage-replication-jobs.sh: saves and updates replication job schedules
 - migrate-ct-with-shared-mountpoint.sh: migrates containers with a shared mountpoint
 - migrate-vm-with-shutdown.sh: migrates VMs from one host to another via shutting them down
-- setup-host-backups.sh: installs a systemd timer for Proxmox host backups to a PBS storage
+- setup-host-backups.sh: installs a systemd timer for Proxmox host backups to a PBS storage; first-time setup asks for the backup schedule

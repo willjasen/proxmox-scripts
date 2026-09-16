@@ -11,13 +11,13 @@ PBS_CREDENTIALS_FILE="${PBS_CREDENTIALS_FILE:-${INSTALL_DIR}/pbs-credentials}"
 EXCLUDE_FILE="${EXCLUDE_FILE:-${INSTALL_DIR}/exclude}"
 INCLUDE_FILE="${INCLUDE_FILE:-${INSTALL_DIR}/include}"
 ON_CALENDAR="${ON_CALENDAR:-03:15}"
-RANDOMIZED_DELAY="${RANDOMIZED_DELAY:-45m}"
 BACKUP_ID="${BACKUP_ID:-$(hostname -s)}"
 NAMESPACE="${NAMESPACE:-hosts}"
 PBS_FINGERPRINT_INPUT="${PBS_FINGERPRINT:-}"
 DRY_RUN=0
 FORCE=0
 ENABLE_TIMER=1
+SCHEDULE_SET=0
 
 RESET=$'\033[0m'
 BOLD=$'\033[1m'
@@ -33,8 +33,7 @@ Sets up automated Proxmox host backups to the existing PBS storage "$PBS_STORAGE
 
 Options:
   --storage NAME          Proxmox PBS storage name (default: PBS1)
-  --schedule SPEC        systemd OnCalendar value (default: 03:15)
-  --random-delay SPEC    systemd RandomizedDelaySec value (default: 45m)
+  --schedule SPEC        systemd OnCalendar value (default: ask, prefilled with 03:15)
   --backup-id NAME       PBS backup-id (default: short hostname)
   --namespace NAME       PBS namespace (default: hosts; use empty string to disable)
   --credentials PATH     Credential file with PBS_REPOSITORY and PBS_PASSWORD or PBS_PASSWORD_FILE
@@ -46,7 +45,7 @@ Options:
 
 Examples:
   sudo $0
-  sudo $0 --schedule 'Mon..Sat 03:15' --random-delay 1h
+  sudo $0 --schedule 'Mon..Sat 03:15'
   sudo PBS_STORAGE=PBS1 NAMESPACE=hosts $0
 EOF
 }
@@ -85,8 +84,9 @@ write_file() {
     local path="$1"
     local mode="$2"
     local content="$3"
+    local overwrite="${4:-$FORCE}"
 
-    if [[ -e "$path" && "$FORCE" -ne 1 ]]; then
+    if [[ -e "$path" && "$overwrite" -ne 1 ]]; then
         warn "$path already exists; leaving it unchanged. Use --force to overwrite it."
         return 0
     fi
@@ -140,9 +140,23 @@ prompt_value() {
     fi
 }
 
+prompt_schedule_settings() {
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        return 0
+    fi
+
+    if [[ -e "$TIMER" && "$FORCE" -ne 1 && "$SCHEDULE_SET" -ne 1 ]]; then
+        return 0
+    fi
+
+    if [[ "$SCHEDULE_SET" -ne 1 ]]; then
+        ON_CALENDAR="$(prompt_value "Backup schedule (systemd OnCalendar)" "$ON_CALENDAR")"
+    fi
+}
+
 validate_pbs_credentials() {
     local credentials_file="$1"
-    local fingerprint="$3"
+    local fingerprint="$2"
 
     [[ -n "$credentials_file" ]] || return 1
     [[ -r "$credentials_file" ]] || return 1
@@ -226,11 +240,7 @@ while [[ $# -gt 0 ]]; do
         --schedule)
             [[ $# -ge 2 ]] || die "--schedule requires a value"
             ON_CALENDAR="$2"
-            shift 2
-            ;;
-        --random-delay)
-            [[ $# -ge 2 ]] || die "--random-delay requires a value"
-            RANDOMIZED_DELAY="$2"
+            SCHEDULE_SET=1
             shift 2
             ;;
         --backup-id)
@@ -305,6 +315,8 @@ fi
 resolve_pbs_settings "$repository" "$password_file" "$fingerprint"
 credentials_file="$PBS_CREDENTIALS_FILE_RESOLVED"
 fingerprint="$PBS_FINGERPRINT_RESOLVED"
+
+prompt_schedule_settings
 
 runner_content='#!/usr/bin/env bash
 set -euo pipefail
@@ -416,11 +428,15 @@ Description=Run Proxmox host backup to ${PBS_STORAGE}
 
 [Timer]
 OnCalendar=${ON_CALENDAR}
-RandomizedDelaySec=${RANDOMIZED_DELAY}
 Persistent=true
 
 [Install]
 WantedBy=timers.target"
+
+timer_overwrite="$FORCE"
+if [[ "$SCHEDULE_SET" -eq 1 ]]; then
+    timer_overwrite=1
+fi
 
 info "Using Proxmox PBS storage '$PBS_STORAGE'"
 [[ -n "$NAMESPACE" ]] && info "Backups will use PBS namespace '$NAMESPACE'"
@@ -432,7 +448,7 @@ write_file "$ENV_FILE" 0600 "$env_content"
 write_file "$EXCLUDE_FILE" 0640 "$exclude_content"
 write_file "$INCLUDE_FILE" 0640 "$include_content"
 write_file "$SERVICE" 0644 "$service_content"
-write_file "$TIMER" 0644 "$timer_content"
+write_file "$TIMER" 0644 "$timer_content" "$timer_overwrite"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
     info "Dry run complete"
