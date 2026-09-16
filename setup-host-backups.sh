@@ -47,6 +47,9 @@ Examples:
   sudo $0
   sudo $0 --schedule 'Mon..Sat 03:15'
   sudo PBS_STORAGE=PBS1 NAMESPACE=hosts $0
+
+When prompted, use a PBS_REPOSITORY such as:
+  root@pam!host-backup@pbs1:datastore
 EOF
 }
 
@@ -140,6 +143,51 @@ prompt_value() {
     fi
 }
 
+prompt_secret() {
+    local prompt="$1"
+    local value=""
+
+    [[ -t 0 ]] || die "$prompt is required, but this is not an interactive terminal."
+
+    while [[ -z "$value" ]]; do
+        read -r -s -p "$prompt: " value
+        printf '\n' >&2
+    done
+
+    printf '%s\n' "$value"
+}
+
+write_pbs_credentials() {
+    local credentials_file="$1"
+    local repository="$2"
+    local token_secret="$3"
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        printf 'DRY RUN: write %s (0600)\n' "$credentials_file"
+        return 0
+    fi
+
+    install -d -m 0750 "$(dirname "$credentials_file")"
+    umask 077
+    {
+        printf '%s\n' "# Created by setup-host-backups.sh"
+        printf 'PBS_REPOSITORY=%s\n' "$(quote_env "$repository")"
+        printf 'PBS_PASSWORD=%s\n' "$(quote_env "$token_secret")"
+    } > "$credentials_file"
+    chmod 0600 "$credentials_file"
+}
+
+prompt_and_write_pbs_credentials() {
+    local credentials_file="$1"
+    local default_repository="$2"
+    local repository="$default_repository"
+    local token_secret=""
+
+    repository="$(prompt_value "PBS_REPOSITORY, like root@pam!host-backup@pbs1:datastore" "$repository")"
+    token_secret="$(prompt_secret "PBS API token secret")"
+    write_pbs_credentials "$credentials_file" "$repository" "$token_secret"
+}
+
 prompt_schedule_settings() {
     if [[ "$DRY_RUN" -eq 1 ]]; then
         return 0
@@ -222,7 +270,8 @@ resolve_pbs_settings() {
 
     while ! validate_pbs_credentials "$credentials_file" "$fingerprint"; do
         plain_warn "The PBS credential file is missing or failed validation."
-        credentials_file="$(prompt_value "PBS credential file" "$credentials_file")"
+        credentials_file="$(prompt_value "Where should the PBS credentials be saved" "$credentials_file")"
+        prompt_and_write_pbs_credentials "$credentials_file" "$detected_repository"
         fingerprint="$(prompt_value "PBS_FINGERPRINT (blank if not needed)" "$fingerprint")"
     done
 
